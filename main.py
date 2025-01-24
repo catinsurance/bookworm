@@ -7,6 +7,7 @@ from PySide6.QtGui import *
 from PySide6.QtWidgets import *
 
 import defusedxml.ElementTree as ET
+import qtawesome as qta
 
 STEAM_PATH = None
 
@@ -76,65 +77,89 @@ def applyDefaultSettings(settings):
 
     getModsFolderPath()
 
-class HTMLDelegate(QStyledItemDelegate):
-    def __init__(self, parent=None):
-        super(HTMLDelegate, self).__init__(parent)
-        self.doc = QTextDocument(self)
-
-    def paint(self, painter, option, index):
-        painter.save()
-        options = QStyleOptionViewItem(option)
-        self.initStyleOption(options, index)
-        self.doc.setHtml(options.text)
-        options.text = ""
-        style = QApplication.style() if options.widget is None \
-            else options.widget.style()
-        style.drawControl(QStyle.CE_ItemViewItem, options, painter)
-
-        ctx = QAbstractTextDocumentLayout.PaintContext()
-        if option.state & QStyle.State_Selected:
-            ctx.palette.setColor(QPalette.Text, option.palette.color(
-                QPalette.Active, QPalette.HighlightedText))
-        else:
-            ctx.palette.setColor(QPalette.Text, option.palette.color(
-                QPalette.Active, QPalette.Text))
-        textRect = style.subElementRect(QStyle.SE_ItemViewItemText, options, None)
-        if index.column() != 0:
-            textRect.adjust(5, 0, 0, 0)
-        constant = 0
-        margin = (option.rect.height() - options.fontMetrics.height()) / 4
-        textRect.setTop(textRect.top() + margin)
-
-        painter.translate(textRect.topLeft())
-        painter.setClipRect(textRect.translated(-textRect.topLeft()))
-        self.doc.documentLayout().draw(painter, ctx)
-        painter.restore()
-
 class ModItem(QListWidgetItem):
     def __init__(self, folderPath):
 
         QListWidgetItem.__init__(self)
 
         self.loaded = self.loadFromFile(folderPath=folderPath)
+        self.widget = QWidget()
 
+        if not self.loaded:
+            # Failed to load mod, tell the user and don't put any mod data.
+            sadIcon = qta.icon("fa5s.sad-cry").pixmap(QSize(64, 64))
+            self.thumbnail = QLabel()
+            self.thumbnail.setPixmap(sadIcon)
+            self.label = QLabel(f"<font size=5>Failed to read mod data!</font><br><font size=3><i>{folderPath}</i></font>")
+        else:
+            print(f"Load state for {folderPath}: {self.loaded}")
+
+            # TODO: Get mod icon if workshop upload.
+            modIcon = QPixmap()
+            modIcon.size().setWidth(64)
+            modIcon.size().setHeight(64)
+            modIcon.load("resources/no_icon.png")
+            self.thumbnail = QLabel()
+            self.thumbnail.setPixmap(modIcon)
+
+            # Truncate text if too long.
+            name = self.name
+            truncate_length = 56
+            if len(name) > truncate_length:
+                name = name[0:(truncate_length - 3)] + "..."
+
+            # Add checkbox
+            self.checkbox = QPushButton()
+            self.checkbox.iconDisabled = qta.icon("fa5s.square")
+            self.checkbox.iconEnabled = qta.icon("fa5s.check-square")
+
+            if self.enabled:
+                self.checkbox.setIcon(self.checkbox.iconEnabled)
+            else:
+                self.checkbox.setIcon(self.checkbox.iconDisabled)
+
+            self.checkbox.setIconSize(QSize(64, 64))
+            self.checkbox.clicked.connect(self.toggleMod)
+
+            # Set text.
+            self.label = QLabel(f"<font size=5>{name}</font><br><font size=3><i>{self.directory}</i></font>")
+
+        self.layout = QHBoxLayout()
+        self.layout.setContentsMargins(3, 3, 3, 3)
+
+        self.thumbnail.setFixedSize(64, 64)
+        self.layout.addWidget(self.thumbnail, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.layout.addWidget(self.label, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        self.layout.addStretch()
+        if hasattr(self, "checkbox"):
+            self.checkbox.setFixedSize(64, 64)
+            self.layout.addWidget(self.checkbox, alignment=Qt.AlignmentFlag.AlignRight)
+
+        # Set item size.
+        self.widget.setLayout(self.layout)
+        self.setSizeHint(QSize(200, 70))
+
+    # Toggle the mod on or off.
+    def toggleMod(self):
         if not self.loaded:
             return
 
+        path = os.path.join(self.folderPath, "disable.it")
+        if self.enabled:
+            # Create disable.it at path.
+            with open(path, "w") as fp:
+                pass
 
-        print(f"Load state for {folderPath}: {self.loaded}")
+            self.checkbox.setIcon(self.checkbox.iconDisabled)
+            self.enabled = False
+        else:
+            # Remove disable.it (if it exists)
+            if os.path.exists(path):
+                os.remove(path)
 
-        self.icon = QIcon(QPixmap("resources/noicon.jpg"))
-
-        # Apply loaded properties
-        self.setText(f"{self.name}<br><font size=2>{self.directory}</font>")
-        self.setIcon(self.icon)
-        self.setSizeHint(QSize(200, 70))
-
-        self.renderModIcon()
-
-    # TODO: Get mod icon if workshop mod from Steam API.
-    def renderModIcon(self):
-        pass
+            self.checkbox.setIcon(self.checkbox.iconEnabled)
+            self.enabled = True
 
     def loadFromFile(self, folderPath):
         metadataPath = os.path.join(folderPath, "metadata.xml")
@@ -210,12 +235,8 @@ class ModList(QListWidget):
         self.setResizeMode(self.ResizeMode.Adjust)
         self.setAutoScroll(True)
         self.setDragEnabled(False)
-        self.setIconSize(QSize(52, 52))
 
         self.loadMods()
-
-        # Sort list
-        self.sortItems()
 
     def loadMods(self):
         modsPath = getModsFolderPath()
@@ -223,22 +244,40 @@ class ModList(QListWidget):
             # Something went very wrong.
             return
 
+        items = []
         modsList = os.listdir(modsPath)
         for modFolder in modsList:
             folderPath = os.path.join(modsPath, modFolder)
             if os.path.isdir(folderPath):
                 modItem = ModItem(folderPath)
-                if modItem.loaded:
-                    self.addItem(modItem)
+                items.append(modItem)
 
-class MainWidget(QMainWindow):
+        items.sort(key=self.isaacSort)
+        for item in items:
+            self.addItem(item)
+            self.setItemWidget(item, item.widget)
+
+    # Gets the row that the mod with name `name` should show in.
+    # Normal sorting is alphabetical case-insensitive, while this is alphabetical case-sensitive.
+    def isaacSort(self, item):
+        if not hasattr(item, "name"):
+            return "zzzzzzzzzzzzz as low as possible"
+        else:
+            return item.name
+
+class ModViewer(QWidget):
+    def __init__(self):
+        super().__init__()
+
+
+
+class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
         self.setWindowTitle("Isaac Mod Manager")
 
         self.modList = ModList()
-        self.modList.setItemDelegate(HTMLDelegate())
         self.modListDock = QDockWidget("Mod List")
         self.modListDock.setWidget(self.modList)
         self.modListDock.setObjectName("ModListDock")
@@ -249,13 +288,12 @@ class MainWidget(QMainWindow):
     def magic(self):
         self.text.setText(random.choice(self.hello))
 
-
 if __name__ == "__main__":
     app = QApplication([])
 
     settings = QSettings("settings.ini", QSettings.IniFormat)
 
-    widget = MainWidget()
+    widget = MainWindow()
     widget.resize(800, 600)
 
 
