@@ -8,6 +8,7 @@ from PySide6.QtWidgets import *
 
 import defusedxml.ElementTree as ET
 import qtawesome as qta
+import bbcode
 
 STEAM_PATH = None
 
@@ -76,6 +77,40 @@ def applyDefaultSettings(settings):
     # Create default config file.
 
     getModsFolderPath()
+
+# https://www.geeksforgeeks.org/pyqt5-scrollable-label/
+class ScrollLabel(QScrollArea):
+
+    # constructor
+    def __init__(self, *args, **kwargs):
+        QScrollArea.__init__(self, *args, **kwargs)
+
+        # making widget resizable
+        self.setWidgetResizable(True)
+
+        # making qwidget object
+        content = QWidget(self)
+        self.setWidget(content)
+
+        # vertical box layout
+        lay = QVBoxLayout(content)
+
+        # creating label
+        self.label = QLabel(content)
+
+        # setting alignment to the text
+        self.label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+
+        # making label multi-line
+        self.label.setWordWrap(True)
+
+        # adding label to the layout
+        lay.addWidget(self.label)
+
+    # the setText method
+    def setText(self, text):
+        # setting text to the label
+        self.label.setText(text)
 
 class ModItem(QListWidgetItem):
     def __init__(self, folderPath):
@@ -215,7 +250,7 @@ class ModItem(QListWidgetItem):
         # Get mod description.
         description = root.find("description")
         if description == None or description.text == None or description.text == "":
-            self.description = "[No description.]"
+            self.description = "[No description]"
         else:
             self.description = description.text
 
@@ -235,6 +270,8 @@ class ModList(QListWidget):
         self.setResizeMode(self.ResizeMode.Adjust)
         self.setAutoScroll(True)
         self.setDragEnabled(False)
+        self.setBaseSize(QSize(400, self.baseSize().height()))
+        self.setMinimumWidth(400)
 
         self.loadMods()
 
@@ -269,6 +306,48 @@ class ModViewer(QWidget):
     def __init__(self):
         super().__init__()
 
+        self.layout = QBoxLayout(QBoxLayout.Direction.TopToBottom)
+
+        self.titleLabel = QLabel()
+        self.workshopLabel = QLabel()
+        self.descriptionLabel = ScrollLabel()
+
+        self.layout.addWidget(self.titleLabel)
+        self.layout.addWidget(self.workshopLabel)
+        self.layout.addWidget(self.descriptionLabel)
+
+        self.setLayout(self.layout)
+
+    def parseBBCode(self, text):
+        bbcodeParser = bbcode.Parser(replace_links=False)
+        bbcodeParser.add_simple_formatter("h1", "<font size=5>%(value)s</font>")
+        bbcodeParser.add_simple_formatter("h2", "<font size=4>%(value)s</font>")
+        bbcodeParser.add_simple_formatter("h3", "<font size=3>%(value)s</font>")
+
+        bbcodeParser.add_simple_formatter("olist", "<ol>%(value)s</ol>")
+
+        bbcodeParser.add_simple_formatter("img", '<i>[image]</i>')
+
+        return bbcodeParser.format(text)
+
+
+    def selectionChanged(self, current, previous):
+        # Set title
+        self.titleLabel.setText(f"<font size=8>{current.name}</font> <font size=3>    ({current.directory})</font>")
+
+        # Set workshop id.
+        if hasattr(current, "workshopId"):
+            self.workshopLabel.setText(f"Workshop ID: {current.workshopId}")
+        else:
+            self.workshopLabel.setText("Workshop ID: -")
+
+        # Set description
+
+        html = self.parseBBCode(current.description)
+        self.descriptionLabel.setText(html)
+
+
+
 
 
 class MainWindow(QMainWindow):
@@ -284,9 +363,11 @@ class MainWindow(QMainWindow):
         self.modListDock.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.modListDock)
 
-    @Slot()
-    def magic(self):
-        self.text.setText(random.choice(self.hello))
+        self.modViewer = ModViewer()
+        self.modViewer.modList = self.modList
+        self.setCentralWidget(self.modViewer)
+
+        self.modList.currentItemChanged.connect(self.modViewer.selectionChanged)
 
 if __name__ == "__main__":
     app = QApplication([])
@@ -294,9 +375,8 @@ if __name__ == "__main__":
     settings = QSettings("settings.ini", QSettings.IniFormat)
 
     widget = MainWindow()
-    widget.resize(800, 600)
-
-
+    widget.setMinimumSize(1200, 800)
+    widget.setMaximumSize(1200, 800)
 
     widget.show()
 
