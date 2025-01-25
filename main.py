@@ -1,12 +1,14 @@
 import sys
 import os
 import re
-import random
+import string
+from datetime import datetime as date
 from PySide6.QtCore import *
 from PySide6.QtGui import *
 from PySide6.QtWidgets import *
 
 import defusedxml.ElementTree as ET
+import xml.etree.ElementTree as OtherET
 import qtawesome as qta
 import bbcode
 
@@ -127,8 +129,6 @@ class ModItem(QListWidgetItem):
             self.thumbnail.setPixmap(sadIcon)
             self.label = QLabel(f"<font size=5>Failed to read mod data!</font><br><font size=3><i>{folderPath}</i></font>")
         else:
-            print(f"Load state for {folderPath}: {self.loaded}")
-
             # TODO: Get mod icon if workshop upload.
             modIcon = QPixmap()
             modIcon.size().setWidth(64)
@@ -302,6 +302,219 @@ class ModList(QListWidget):
         else:
             return item.name
 
+class PackItem(QListWidgetItem):
+    def __init__(self, filePath = None):
+        super().__init__()
+
+        dateNow = date.now().strftime("%H:%M:%S")
+        self.name = "New Pack (" + dateNow + ")"
+        self.dateCreated = dateNow
+        self.dateModified = dateNow
+        self.mods = []
+        self.loaded = False
+
+        if filePath is not None:
+            self.loaded = self.deserialize(filePath)
+        else:
+            self.serialize()
+            self.loaded = True
+
+        if not self.loaded:
+            print(f"Could not load modpack of file path {filePath}")
+
+        self.widget = QWidget()
+        self.layout = QVBoxLayout()
+
+        # Create name label.
+        self.label = QLabel()
+        self.setLabel()
+        self.layout.addWidget(self.label)
+
+        # Create buttons in grid.
+        self.buttonGrid = QGridLayout()
+
+        self.apply = QPushButton("Apply")
+        self.buttonGrid.addWidget(self.apply, 0, 0, 1, 1)
+
+        self.filter = QPushButton("Filter")
+        self.buttonGrid.addWidget(self.filter, 0, 1, 1, 1)
+
+        self.export = QPushButton("Export")
+        self.buttonGrid.addWidget(self.export, 1, 0, 1, 1)
+
+        self.delete = QPushButton("Delete")
+        self.buttonGrid.addWidget(self.delete, 1, 1, 1, 1)
+
+        self.layout.addLayout(self.buttonGrid)
+        self.apply.setVisible(False)
+        self.filter.setVisible(False)
+        self.export.setVisible(False)
+        self.delete.setVisible(False)
+
+        # Set item sizes.
+        self.widget.setLayout(self.layout)
+        self.setSizeHint(QSize(200, 70))
+
+    def expand(self):
+        self.setSizeHint(QSize(200, 140))
+        self.apply.setVisible(True)
+        self.filter.setVisible(True)
+        self.export.setVisible(True)
+        self.delete.setVisible(True)
+
+    def shrink(self):
+        self.setSizeHint(QSize(200, 70))
+        self.apply.setVisible(False)
+        self.filter.setVisible(False)
+        self.export.setVisible(False)
+        self.delete.setVisible(False)
+
+    def addMod(self, directory):
+        self.mods.append(directory)
+        self.setLabel()
+
+    def setLabel(self):
+        self.label.setText(f"<font size=5>{self.name}</font><br><font size=3><i>Mods: {len(self.mods)}</i></font>")
+
+    def deserialize(self, filePath):
+        self.filePath = filePath
+
+        try:
+            tree = ET.parse(self.filePath)
+        except:
+            print(f"Could not parse pack data at path {filePath}")
+            return False
+
+        root = tree.getroot()
+
+        # Get name of pack.
+        name = root.find("name")
+        if name == None:
+            print(f"No name found for pack of path {filePath}")
+            return False
+
+        self.name = name.text
+
+        # Get date information.
+        dateNow = date.now().strftime("%H:%M:%S")
+        dateTag = root.find("date")
+        if date == None:
+            self.dateCreated = dateNow
+            self.dateModified = dateNow
+        else:
+            self.dateCreated = dateTag.get("created")
+            self.dateModified = dateTag.get("modified")
+
+        # Get mods in pack.
+        self.mods = []
+        modTag = root.find("mods")
+        if modTag == None:
+            print(f"No mods found for pack of path {filePath}")
+            return False
+
+        mods = modTag.findall("mod")
+        for mod in mods:
+            self.mods.append(mod.text)
+
+        return True
+
+
+    def serialize(self, filePath = None):
+        # Serialize as XML.
+        root = OtherET.Element("modpack")
+
+        # Name tag.
+        name = OtherET.SubElement(root, "name")
+        name.text = self.name
+
+        # Date tag.
+        dateNow = date.now().strftime("%H:%M:%S")
+        self.dateModified = dateNow
+        dateTag = OtherET.SubElement(root, "date", attrib={
+            "created": self.dateCreated,
+            "modified": self.dateModified,
+        })
+
+        # Mod tags.
+        print(len(self.mods))
+        modTag = OtherET.SubElement(root, "mods")
+        for mod in self.mods:
+            tag = OtherET.SubElement(modTag, "mod")
+            tag.text = mod
+            print(mod)
+
+        # Write.
+        tree = OtherET.ElementTree(root)
+        OtherET.indent(tree, space="\t", level=0)
+
+        if not filePath:
+            # Find file path.
+            # https://stackoverflow.com/a/7406369
+            keepCharacters = (' ','.','_')
+            filename = "".join(c for c in self.name if c.isalnum() or c in keepCharacters).rstrip()
+
+            # Write (for real).
+            tree.write("packs/" + filename + ".xml", encoding="utf-8")
+        else:
+            tree.write(filePath, encoding="utf-8")
+
+        print(f"Successfully saved pack {self.name}")
+
+class PackList(QListWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.setAlternatingRowColors(True)
+        self.setViewMode(self.ViewMode.ListMode)
+        self.setSelectionMode(self.SelectionMode.SingleSelection)
+        self.setResizeMode(self.ResizeMode.Adjust)
+        self.setAutoScroll(True)
+        self.setDragEnabled(False)
+        self.setBaseSize(QSize(400, self.baseSize().height()))
+        self.setMinimumWidth(400)
+
+        # Create add pack button.
+        self.newPackItem = QListWidgetItem()
+        self.newPackWidget = QWidget()
+        self.newPackButton = QPushButton("Add", self.newPackWidget)
+        self.newPackButton.clicked.connect(self.addPack)
+        self.addItem(self.newPackItem)
+        self.setItemWidget(self.newPackItem, self.newPackWidget)
+
+        self.loadPacks()
+
+    def addPack(self):
+        newPack = PackItem()
+        self.addItem(newPack)
+        self.setItemWidget(newPack, newPack.widget)
+
+    def loadPacks(self):
+        packsPath = "packs/"
+        if not os.path.isdir(packsPath):
+            # Something went very wrong.
+            return
+
+        items = []
+        packsList = os.listdir(packsPath)
+        for packXml in packsList:
+            packPath = os.path.join(packsPath, packXml)
+            if os.path.isfile(packPath) and packPath.lower().endswith(".xml"):
+                packItem = PackItem(packPath)
+                if packItem.loaded:
+                    items.append(packItem)
+
+        items.sort()
+        for item in items:
+            self.addItem(item)
+            self.setItemWidget(item, item.widget)
+
+    def selectionChanged(self, current, previous):
+        if hasattr(previous, "shrink"):
+            previous.shrink()
+
+        if hasattr(current, "expand"):
+            current.expand()
+
 class ModViewer(QWidget):
     def __init__(self):
         super().__init__()
@@ -316,7 +529,27 @@ class ModViewer(QWidget):
         self.layout.addWidget(self.workshopLabel)
         self.layout.addWidget(self.descriptionLabel)
 
+        # Add/remove to pack button.
+        self.addPackLayout = QBoxLayout(QBoxLayout.Direction.TopToBottom)
+
+        self.addPackLabel = QLabel("Add to pack")
+        self.addPackLayout.addWidget(self.addPackLabel)
+
+        self.addPackList = QListWidget()
+        self.layout.addWidget(self.addPackList)
+
+        self.removePackList = QListWidget()
+        self.layout.addWidget(self.removePackList)
+
         self.setLayout(self.layout)
+
+    def updatePackList(self, packList):
+        self.addPackList.clear()
+        for x in range(packList.count()):
+            item = packList.item(x)
+            if hasattr(item, "name"):
+                listItem = QListWidgetItem(item.name)
+                self.addPackList.addItem(listItem)
 
     def parseBBCode(self, text):
         bbcodeParser = bbcode.Parser(replace_links=False)
@@ -328,12 +561,20 @@ class ModViewer(QWidget):
 
         bbcodeParser.add_simple_formatter("img", '<i>[image]</i>')
 
+        # TODO: Implement spoiler tags with this.
+        bbcodeParser.add_simple_formatter("spoiler", '<span class="spoiler">%(value)s</span>')
+
         return bbcodeParser.format(text)
 
+    def refresh(self):
+        if not hasattr("selectedItem", self):
+            return
 
-    def selectionChanged(self, current, previous):
+        self.selectionChanged(self.selectedItem)
+
+    def selectionChanged(self, current):
         # Set title
-        self.titleLabel.setText(f"<font size=8>{current.name}</font> <font size=3>    ({current.directory})</font>")
+        self.titleLabel.setText(f"<font size=8>{current.name}</font><br/><font size=3>({current.directory})</font>")
 
         # Set workshop id.
         if hasattr(current, "workshopId"):
@@ -346,9 +587,7 @@ class ModViewer(QWidget):
         html = self.parseBBCode(current.description)
         self.descriptionLabel.setText(html)
 
-
-
-
+        self.selectedItem = current
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -357,17 +596,46 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Isaac Mod Manager")
 
         self.modList = ModList()
-        self.modListDock = QDockWidget("Mod List")
+        self.modListDock = QDockWidget("Mods")
         self.modListDock.setWidget(self.modList)
         self.modListDock.setObjectName("ModListDock")
         self.modListDock.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.modListDock)
 
+        self.packList = PackList()
+        self.packListDock = QDockWidget("Packs")
+        self.packListDock.setWidget(self.packList)
+        self.packListDock.setObjectName("PackListDock")
+        self.packListDock.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.packListDock)
+        self.packList.currentItemChanged.connect(self.packList.selectionChanged)
+
         self.modViewer = ModViewer()
         self.modViewer.modList = self.modList
-        self.setCentralWidget(self.modViewer)
+        self.modViewer.updatePackList(self.packList)
 
+        self.modViewer.addPackList.currentItemChanged.connect(self.modViewerAddPack)
+
+        self.setCentralWidget(self.modViewer)
         self.modList.currentItemChanged.connect(self.modViewer.selectionChanged)
+
+    def modViewerAddPack(self):
+        currentRow = self.modViewer.addPackList.currentRow()
+        packName = self.modViewer.addPackList.item(currentRow).text()
+        for x in range(widget.packList.count()):
+            item = widget.packList.item(x)
+            if hasattr(item, "name") and item.name == packName:
+                item.addMod(self.modViewer.selectedItem.directory)
+                print("appended")
+
+    def closeEvent(self, event):
+        # Save packs.
+        for x in range(self.packList.count()):
+            item = self.packList.item(x)
+            if hasattr(item, "serialize"):
+                item.serialize()
+                print(f"Serialized mod {item.name}")
+
 
 if __name__ == "__main__":
     app = QApplication([])
