@@ -14,6 +14,8 @@ import bbcode
 
 STEAM_PATH = None
 
+selectedMod = None
+
 # Taken from Basement Renovator.
 def getSteamPath():
     global STEAM_PATH
@@ -303,8 +305,10 @@ class ModList(QListWidget):
             return item.name
 
 class PackItem(QListWidgetItem):
-    def __init__(self, filePath = None):
+    def __init__(self, packList, filePath = None):
         super().__init__()
+
+        self.packList = packList
 
         dateNow = date.now().strftime("%H:%M:%S")
         self.name = "New Pack (" + dateNow + ")"
@@ -325,16 +329,29 @@ class PackItem(QListWidgetItem):
         self.widget = QWidget()
         self.layout = QVBoxLayout()
 
-        # Create name label.
-        self.label = QLabel()
+        # Create rename button.
+
+        # Create name and count labels.
+        self.title = QLineEdit()
+        self.title.setFixedSize(QSize(300, 30))
+        f = self.title.font()
+        f.setPointSize(12)
+        self.title.setFont(f)
+        self.title.editingFinished.connect(self.rename)
+
+        self.modCount = QLabel()
+
         self.setLabel()
-        self.layout.addWidget(self.label)
+
+        self.layout.addWidget(self.title)
+        self.layout.addWidget(self.modCount)
 
         # Create buttons in grid.
         self.buttonGrid = QGridLayout()
 
         self.apply = QPushButton("Apply")
         self.buttonGrid.addWidget(self.apply, 0, 0, 1, 1)
+        self.apply.clicked.connect(self.applyPack)
 
         self.filter = QPushButton("Filter")
         self.buttonGrid.addWidget(self.filter, 0, 1, 1, 1)
@@ -370,11 +387,23 @@ class PackItem(QListWidgetItem):
         self.delete.setVisible(False)
 
     def addMod(self, directory):
+        if directory in self.mods:
+            return
+
         self.mods.append(directory)
         self.setLabel()
 
+    def removeMod(self, directory):
+        self.mods.remove(directory)
+        self.setLabel()
+
+    def rename(self):
+        self.name = self.title.displayText()
+        self.packList.updateModViewerPackList()
+
     def setLabel(self):
-        self.label.setText(f"<font size=5>{self.name}</font><br><font size=3><i>Mods: {len(self.mods)}</i></font>")
+        self.title.setText(self.name)
+        self.modCount.setText(f"<font size=3><i>Mods: {len(self.mods)}</i></font>")
 
     def deserialize(self, filePath):
         self.filePath = filePath
@@ -419,7 +448,7 @@ class PackItem(QListWidgetItem):
         return True
 
 
-    def serialize(self, filePath = None):
+    def serialize(self):
         # Serialize as XML.
         root = OtherET.Element("modpack")
 
@@ -436,33 +465,78 @@ class PackItem(QListWidgetItem):
         })
 
         # Mod tags.
-        print(len(self.mods))
         modTag = OtherET.SubElement(root, "mods")
         for mod in self.mods:
             tag = OtherET.SubElement(modTag, "mod")
             tag.text = mod
-            print(mod)
 
         # Write.
         tree = OtherET.ElementTree(root)
         OtherET.indent(tree, space="\t", level=0)
 
-        if not filePath:
-            # Find file path.
-            # https://stackoverflow.com/a/7406369
-            keepCharacters = (' ','.','_')
-            filename = "".join(c for c in self.name if c.isalnum() or c in keepCharacters).rstrip()
+        if hasattr(self, "filePath"):
+            if os.path.exists(self.filePath) and os.path.isfile(self.filePath):
+                os.remove(self.filePath)
 
-            # Write (for real).
-            tree.write("packs/" + filename + ".xml", encoding="utf-8")
-        else:
-            tree.write(filePath, encoding="utf-8")
+        # Find file path.
+        # https://stackoverflow.com/a/7406369
+        keepCharacters = (' ','.','_')
+        filename = "".join(c for c in self.name if c.isalnum() or c in keepCharacters).rstrip()
+
+        # Write (for real).
+        self.filePath = "packs/" + filename + ".xml"
+        tree.write(self.filePath, encoding="utf-8")
+
 
         print(f"Successfully saved pack {self.name}")
 
-class PackList(QListWidget):
-    def __init__(self):
+    def applyPack(self):
+        if len(self.mods) == 0:
+            return
+
+        for x in range(self.packList.modList.count()):
+            mod = self.packList.modList.item(x)
+            if mod.loaded:
+                # If the mod is enabled and it shouldn't be.
+                if mod.enabled and mod.directory not in self.mods:
+                    mod.toggleMod()
+                # If the mod is disabled and it shouldn't be.
+                if not mod.enabled and mod.directory in self.mods:
+                    mod.toggleMod()
+
+class MiniPackItem(QListWidgetItem):
+    def __init__(self, pack):
         super().__init__()
+
+        self.pack = pack
+        self.widget = QWidget()
+        self.layout = QHBoxLayout()
+
+        self.label = QLabel(pack.name)
+        self.layout.addWidget(self.label, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        self.checkbox = QCheckBox()
+
+        self.checkbox.checkStateChanged.connect(self.checkChanged)
+        self.layout.addWidget(self.checkbox, alignment=Qt.AlignmentFlag.AlignRight)
+
+        self.widget.setLayout(self.layout)
+        self.setSizeHint(QSize(200, 30))
+
+    def checkChanged(self):
+        print(f"selecte mod {selectedMod}")
+        if selectedMod is not None:
+            if self.checkbox.isChecked():
+                self.pack.addMod(selectedMod.directory)
+            else:
+                self.pack.removeMod(selectedMod.directory)
+
+
+class PackList(QListWidget):
+    def __init__(self, modList):
+        super().__init__()
+
+        self.modList = modList
 
         self.setAlternatingRowColors(True)
         self.setViewMode(self.ViewMode.ListMode)
@@ -484,9 +558,13 @@ class PackList(QListWidget):
         self.loadPacks()
 
     def addPack(self):
-        newPack = PackItem()
+        newPack = PackItem(self, None)
         self.addItem(newPack)
         self.setItemWidget(newPack, newPack.widget)
+
+    def updateModViewerPackList(self):
+        if self.modViewer is not None:
+            self.modViewer.createPackList(self)
 
     def loadPacks(self):
         packsPath = "packs/"
@@ -499,7 +577,7 @@ class PackList(QListWidget):
         for packXml in packsList:
             packPath = os.path.join(packsPath, packXml)
             if os.path.isfile(packPath) and packPath.lower().endswith(".xml"):
-                packItem = PackItem(packPath)
+                packItem = PackItem(self, packPath)
                 if packItem.loaded:
                     items.append(packItem)
 
@@ -532,24 +610,32 @@ class ModViewer(QWidget):
         # Add/remove to pack button.
         self.addPackLayout = QBoxLayout(QBoxLayout.Direction.TopToBottom)
 
-        self.addPackLabel = QLabel("Add to pack")
+        self.addPackLabel = QLabel("<h2>Included in packs:</h2>")
         self.addPackLayout.addWidget(self.addPackLabel)
 
         self.addPackList = QListWidget()
-        self.layout.addWidget(self.addPackList)
+        self.addPackLayout.addWidget(self.addPackList)
 
-        self.removePackList = QListWidget()
-        self.layout.addWidget(self.removePackList)
-
+        self.layout.addLayout(self.addPackLayout)
         self.setLayout(self.layout)
 
-    def updatePackList(self, packList):
+    def createPackList(self, packList):
         self.addPackList.clear()
         for x in range(packList.count()):
             item = packList.item(x)
             if hasattr(item, "name"):
-                listItem = QListWidgetItem(item.name)
+                listItem = MiniPackItem(item)
                 self.addPackList.addItem(listItem)
+                self.addPackList.setItemWidget(listItem, listItem.widget)
+
+    def updatePackList(self):
+        for x in range(self.addPackList.count()):
+            item = self.addPackList.item(x)
+            if selectedMod is not None and selectedMod.directory in item.pack.mods:
+                item.checkbox.setCheckState(Qt.CheckState.Checked)
+            else:
+                item.checkbox.setCheckState(Qt.CheckState.Unchecked)
+
 
     def parseBBCode(self, text):
         bbcodeParser = bbcode.Parser(replace_links=False)
@@ -567,10 +653,10 @@ class ModViewer(QWidget):
         return bbcodeParser.format(text)
 
     def refresh(self):
-        if not hasattr("selectedItem", self):
+        if not selectedMod:
             return
 
-        self.selectionChanged(self.selectedItem)
+        self.selectionChanged(selectedMod)
 
     def selectionChanged(self, current):
         # Set title
@@ -587,7 +673,10 @@ class ModViewer(QWidget):
         html = self.parseBBCode(current.description)
         self.descriptionLabel.setText(html)
 
-        self.selectedItem = current
+        global selectedMod
+        selectedMod = current
+
+        self.updatePackList()
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -602,7 +691,7 @@ class MainWindow(QMainWindow):
         self.modListDock.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.modListDock)
 
-        self.packList = PackList()
+        self.packList = PackList(self.modList)
         self.packListDock = QDockWidget("Packs")
         self.packListDock.setWidget(self.packList)
         self.packListDock.setObjectName("PackListDock")
@@ -612,21 +701,11 @@ class MainWindow(QMainWindow):
 
         self.modViewer = ModViewer()
         self.modViewer.modList = self.modList
-        self.modViewer.updatePackList(self.packList)
-
-        self.modViewer.addPackList.currentItemChanged.connect(self.modViewerAddPack)
+        self.packList.modViewer = self.modViewer
+        self.modViewer.createPackList(self.packList)
 
         self.setCentralWidget(self.modViewer)
         self.modList.currentItemChanged.connect(self.modViewer.selectionChanged)
-
-    def modViewerAddPack(self):
-        currentRow = self.modViewer.addPackList.currentRow()
-        packName = self.modViewer.addPackList.item(currentRow).text()
-        for x in range(widget.packList.count()):
-            item = widget.packList.item(x)
-            if hasattr(item, "name") and item.name == packName:
-                item.addMod(self.modViewer.selectedItem.directory)
-                print("appended")
 
     def closeEvent(self, event):
         # Save packs.
