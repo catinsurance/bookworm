@@ -413,6 +413,10 @@ class ModList(QListWidget):
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self.setMinimumWidth(400)
 
+        # Create a tools layout for the filter features.
+        self.filterToolsWidget = QWidget()
+        self.filterToolsLayout = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+
         self.loadMods()
 
     def loadMods(self):
@@ -542,9 +546,9 @@ class PackItem(QListWidgetItem):
 
         # Just remove the entry from the list without prompting a dialog.
         if cleanEntry:
-            for x in range(self.packList.count()):
+            for x in range(self.packList.count() - 1, -1, -1):
                 item = self.packList.item(x)
-                if hasattr(item, "uuid") and item.uuid == self.uuid:
+                if item.uuid == self.uuid:
                     self.packList.takeItem(x)
 
             return
@@ -557,13 +561,13 @@ class PackItem(QListWidgetItem):
 
         ret = confirmation.exec()
         if ret == QMessageBox.StandardButton.Yes:
+            for x in range(self.packList.count() - 1, -1, -1):
+                item = self.packList.item(x)
+                if item.uuid == self.uuid:
+                    self.packList.takeItem(x)
+
             if os.path.exists(self.filePath):
                 os.remove(self.filePath)
-
-            for x in range(self.packList.count()):
-                item = self.packList.item(x)
-                if hasattr(item, "uuid") and item.uuid == self.uuid:
-                    self.packList.takeItem(x)
 
             self.packList.updateModViewerPackList()
 
@@ -601,7 +605,7 @@ class PackItem(QListWidgetItem):
 
         for x in range(self.packList.count()):
             item = self.packList.item(x)
-            if hasattr(item, "uuid") and item.uuid == uuid.text:
+            if item.uuid == uuid.text:
                 print(f"Pack of path {filePath} is already loaded!")
                 return False
 
@@ -734,12 +738,9 @@ class MiniPackItem(QListWidgetItem):
             else:
                 self.pack.removeMod(selectedMod.directory)
 
-
 class PackList(QListWidget):
-    def __init__(self, modList):
+    def __init__(self):
         super().__init__()
-
-        self.modList = modList
 
         self.setAlternatingRowColors(True)
         self.setViewMode(self.ViewMode.ListMode)
@@ -751,70 +752,7 @@ class PackList(QListWidget):
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self.setMinimumWidth(400)
 
-        # Create add pack button.
-        self.packToolsItem = QListWidgetItem()
-        self.packToolsWidget = QWidget()
-        self.packToolsLayout = QBoxLayout(QBoxLayout.Direction.LeftToRight)
-
-        self.newPackButton = QPushButton("Add", self.packToolsWidget)
-        self.packToolsLayout.addWidget(self.newPackButton)
-        self.newPackButton.clicked.connect(self.addPack)
-
-        # Create import pack button.
-        self.importPackButton = QPushButton("Import", self.packToolsWidget)
-        self.packToolsLayout.addWidget(self.importPackButton)
-        self.importPackButton.clicked.connect(self.importPack)
-
-        # Create pack filter box.
-        self.filterBox = QLineEdit()
-        self.packToolsLayout.addWidget(self.filterBox, stretch=2)
-        self.filterBox.setPlaceholderText("Search...")
-        self.filterBox.textChanged.connect(self.filter)
-
-        self.packToolsItem.setFlags(self.packToolsItem.flags() & ~Qt.ItemFlag.ItemIsSelectable)
-
-        self.packToolsWidget.setLayout(self.packToolsLayout)
-        self.packToolsItem.setSizeHint(QSize(200, 40))
-        self.packToolsLayout.addStretch()
-        self.addItem(self.packToolsItem)
-        self.setItemWidget(self.packToolsItem, self.packToolsWidget)
-
         self.loadPacks()
-
-    def importPack(self):
-        dialog = QFileDialog()
-        dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
-        dialog.setNameFilter("Packs (*.xml)")
-        dialog.setLabelText(QFileDialog.DialogLabel.FileName, "Import pack")
-        dialog.fileSelected.connect(self.importedFile)
-        dialog.exec()
-
-    def importedFile(self, filePath):
-        newPack = PackItem(self, filePath)
-        if newPack.loaded:
-            self.addItem(newPack)
-            self.setItemWidget(newPack, newPack.widget)
-            self.updateModViewerPackList()
-        else:
-            newPack.remove(True)
-
-    def addPack(self):
-        newPack = PackItem(self, None)
-        self.addItem(newPack)
-        self.setItemWidget(newPack, newPack.widget)
-        self.updateModViewerPackList()
-
-    def updateModViewerPackList(self):
-        if self.modViewer is not None:
-            self.modViewer.createPackList(self)
-
-    def filter(self):
-        query = self.filterBox.displayText().lower()
-        for i in range(self.count()):
-            item = self.item(i)
-            if hasattr(item, "name"):
-                item.setHidden(query not in item.name.lower())
-
 
     def loadPacks(self):
         packsPath = "packs/"
@@ -842,6 +780,71 @@ class PackList(QListWidget):
 
         if hasattr(current, "expand"):
             current.expand()
+
+    def updateModViewerPackList(self):
+        if self.modViewer is not None:
+            self.modViewer.createPackList(self)
+
+class PackListToolbar(QWidget):
+    def __init__(self, packList):
+        super().__init__()
+
+        self.packList = packList
+
+        # Create add pack button.
+        self.packToolsLayout = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.packToolsLayout.setContentsMargins(0, 0, 0, 0)
+
+        self.newPackButton = QPushButton("Add", self)
+        self.packToolsLayout.addWidget(self.newPackButton)
+        self.newPackButton.clicked.connect(self.addPack)
+
+        # Create import pack button.
+        self.importPackButton = QPushButton("Import", self)
+        self.packToolsLayout.addWidget(self.importPackButton)
+        self.importPackButton.clicked.connect(self.importPack)
+
+        # Create pack filter box.
+        self.filterBox = QLineEdit()
+        self.packToolsLayout.addWidget(self.filterBox, stretch=2)
+        self.filterBox.setPlaceholderText("Search...")
+        self.filterBox.textChanged.connect(self.filter)
+
+        # Add pack filter stuff.
+        self.setLayout(self.packToolsLayout)
+
+    def filter(self):
+        query = self.filterBox.displayText().lower()
+        for i in range(self.packList.count()):
+            item = self.packList.item(i)
+            item.setHidden(query not in item.name.lower())
+
+    def addPack(self):
+        newPack = PackItem(self.packList, None)
+        self.packList.addItem(newPack)
+        self.packList.setItemWidget(newPack, newPack.widget)
+        self.updateModViewerPackList()
+
+    def importPack(self):
+        dialog = QFileDialog()
+        dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
+        dialog.setNameFilter("Packs (*.xml)")
+        dialog.setLabelText(QFileDialog.DialogLabel.FileName, "Import pack")
+        dialog.fileSelected.connect(self.importedFile)
+        dialog.exec()
+
+    def importedFile(self, filePath):
+        newPack = PackItem(self.packList, filePath)
+        if newPack.loaded:
+            self.packList.addItem(newPack)
+            self.packList.setItemWidget(newPack, newPack.widget)
+            self.updateModViewerPackList()
+        else:
+            newPack.remove(True)
+
+    def updateModViewerPackList(self):
+        if self.modViewer is not None:
+            self.modViewer.createPackList(self.packList)
 
 class ModViewer(QWidget):
     def __init__(self):
@@ -873,10 +876,9 @@ class ModViewer(QWidget):
         self.addPackList.clear()
         for x in range(packList.count()):
             item = packList.item(x)
-            if hasattr(item, "name"):
-                listItem = MiniPackItem(item)
-                self.addPackList.addItem(listItem)
-                self.addPackList.setItemWidget(listItem, listItem.widget)
+            listItem = MiniPackItem(item)
+            self.addPackList.addItem(listItem)
+            self.addPackList.setItemWidget(listItem, listItem.widget)
 
     def updatePackList(self):
         for x in range(self.addPackList.count()):
@@ -915,7 +917,11 @@ class ModViewer(QWidget):
 
     def selectionChanged(self, current):
         # Set title
-        self.titleLabel.setText(f"<font size=8>{current.name}</font><br/><font size=3>({current.directory})</font>")
+        truncateConstant = 26
+        title = current.name
+        if len(title) > truncateConstant:
+            title = title[0:truncateConstant-3] + "..."
+        self.titleLabel.setText(f"<font size=8>{title}</font><br/><font size=3>({current.directory})</font>")
 
         # Set workshop id.
         if hasattr(current, "workshopId"):
@@ -939,6 +945,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Isaac Mod Manager")
 
+        # Add mod list.
         self.modList = ModList()
         self.modListDock = QDockWidget("Mods")
         self.modListDock.setWidget(self.modList)
@@ -946,16 +953,31 @@ class MainWindow(QMainWindow):
         self.modListDock.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.modListDock)
 
-        self.packList = PackList(self.modList)
+        # Add pack list.
         self.packListDock = QDockWidget("Packs")
-        self.packListDock.setWidget(self.packList)
-        self.packListDock.setObjectName("PackListDock")
         self.packListDock.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.packListDock)
+        self.packListDockWidget = QWidget()
+        self.packListDockLayout = QBoxLayout(QBoxLayout.Direction.TopToBottom)
+
+        # Create pack list.
+        self.packList = PackList()
         self.packList.currentItemChanged.connect(self.packList.selectionChanged)
 
+        # Create toolbar.
+        self.packToolbar = PackListToolbar(self.packList)
+
+        # Add widgets to dock.
+        self.packListDockLayout.addWidget(self.packToolbar)
+        self.packListDockLayout.addWidget(self.packList)
+
+        self.packListDockWidget.setLayout(self.packListDockLayout)
+        self.packListDock.setWidget(self.packListDockWidget)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.packListDock)
+
+        # Add mod viewer.
         self.modViewer = ModViewer()
         self.modViewer.modList = self.modList
+        self.packToolbar.modViewer = self.modViewer
         self.packList.modViewer = self.modViewer
         self.modViewer.createPackList(self.packList)
 
@@ -963,15 +985,15 @@ class MainWindow(QMainWindow):
         self.modList.currentItemChanged.connect(self.modViewer.selectionChanged)
 
     def closeEvent(self, event):
+        # Disable workshop icon queue.
+        global iconQueueOpen
+        iconQueueOpen = False
+
         # Save packs.
         for x in range(self.packList.count()):
             item = self.packList.item(x)
-            if hasattr(item, "serialize"):
-                item.serialize()
+            item.serialize()
 
-    def closeEvent(self, event):
-        global iconQueueOpen
-        iconQueueOpen = False
 
         event.accept()
 
