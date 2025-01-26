@@ -6,7 +6,6 @@ import requests
 import threading, time
 
 from datetime import datetime as date
-from skimage import io
 from PySide6.QtCore import *
 from PySide6.QtGui import *
 from PySide6.QtWidgets import *
@@ -182,10 +181,10 @@ class ModItem(QListWidgetItem):
 
         if not self.loaded:
             # Failed to load mod, tell the user and don't put any mod data.
-            sadIcon = qta.icon("fa5s.sad-cry").pixmap(QSize(64, 64))
             self.thumbnail = QLabel()
-            self.thumbnail.setPixmap(sadIcon)
+            self.thumbnail.setPixmap(QPixmap("resources/load_fail.png"))
             self.label = QLabel(f"<font size=5>Failed to read mod data!</font><br><font size=3><i>{folderPath}</i></font>")
+            self.setFlags(self.flags() & ~Qt.ItemFlag.ItemIsSelectable)
         else:
             modIcon = QPixmap()
             modIcon.size().setWidth(64)
@@ -250,16 +249,13 @@ class ModItem(QListWidgetItem):
 
             # Add checkbox
             self.checkbox = QPushButton()
-            self.checkbox.iconDisabled = qta.icon("fa5s.square")
-            self.checkbox.iconEnabled = qta.icon("fa5s.check-square")
-            self.checkbox.setStyleSheet("background-color: rgba(255, 255, 255, 0);")
 
             if self.enabled:
-                self.checkbox.setIcon(self.checkbox.iconEnabled)
+                self.checkbox.setObjectName("modItemEnabled")
             else:
-                self.checkbox.setIcon(self.checkbox.iconDisabled)
+                self.checkbox.setObjectName("modItemDisabled")
 
-            self.checkbox.setIconSize(QSize(64, 64))
+            self.refreshCheckboxStylesheet()
             self.checkbox.clicked.connect(self.toggleMod)
 
             # Set text.
@@ -313,6 +309,31 @@ class ModItem(QListWidgetItem):
             self.thumbnailLabel.setText("Click to delete thumbnail")
             self.workshopThumbLoaded = True
 
+    # Required after changing object name.
+    def refreshCheckboxStylesheet(self):
+        self.checkbox.setStyleSheet(
+            """
+            QPushButton#modItemEnabled{
+                background-color: rgba(255, 255, 255, 0);
+                border-image: url(resources/box_tick_on.png);
+            }
+
+            QPushButton#modItemEnabled:hover{
+                background-color: rgba(255, 255, 255, 0);
+                border-image: url(resources/box_tick_on_hover.png);
+            }
+
+            QPushButton#modItemDisabled{
+                background-color: rgba(255, 255, 255, 0);
+                border-image: url(resources/box_tick_off.png);
+            }
+
+            QPushButton#modItemDisabled:hover{
+                background-color: rgba(255, 255, 255, 0);
+                border-image: url(resources/box_tick_off_hover.png);
+            }
+            """
+        )
 
     # Toggle the mod on or off.
     def toggleMod(self):
@@ -325,15 +346,18 @@ class ModItem(QListWidgetItem):
             with open(path, "w") as fp:
                 pass
 
-            self.checkbox.setIcon(self.checkbox.iconDisabled)
+            self.checkbox.setObjectName("modItemDisabled")
             self.enabled = False
         else:
             # Remove disable.it (if it exists)
             if os.path.exists(path):
                 os.remove(path)
 
-            self.checkbox.setIcon(self.checkbox.iconEnabled)
+            self.checkbox.setObjectName("modItemEnabled")
+
             self.enabled = True
+
+        self.refreshCheckboxStylesheet()
 
     def loadFromFile(self, folderPath):
         metadataPath = os.path.join(folderPath, "metadata.xml")
@@ -413,10 +437,6 @@ class ModList(QListWidget):
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self.setMinimumWidth(400)
 
-        # Create a tools layout for the filter features.
-        self.filterToolsWidget = QWidget()
-        self.filterToolsLayout = QBoxLayout(QBoxLayout.Direction.LeftToRight)
-
         self.loadMods()
 
     def loadMods(self):
@@ -445,6 +465,44 @@ class ModList(QListWidget):
             return "zzzzzzzzzzzzz as low as possible"
         else:
             return item.name
+
+class ModListToolbar(QWidget):
+    def __init__(self, modList):
+        super().__init__()
+
+        self.modList = modList
+
+        # Create a tools layout for the filter features.
+        self.filterToolsLayout = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.filterToolsLayout.setContentsMargins(0, 0, 0, 0)
+
+        self.filterButtonIcon = qta.icon("fa5s.filter").pixmap(QSize(32, 32))
+        self.filterButton = QPushButton()
+        self.filterButton.setIcon(self.filterButtonIcon)
+        self.filterButton.setIconSize(QSize(32, 32))
+
+        self.filterToolsLayout.addWidget(self.filterButton)
+
+        self.filterBox = QLineEdit()
+        self.filterToolsLayout.addWidget(self.filterBox, stretch=2)
+        self.filterBox.setPlaceholderText("Search...")
+        self.filterBox.textChanged.connect(self.filter)
+
+        self.setLayout(self.filterToolsLayout)
+
+    def filter(self):
+        query = self.filterBox.displayText().lower()
+        for i in range(self.modList.count()):
+            item = self.modList.item(i)
+
+            # Hide mods that failed to load.
+            if query != "" and not hasattr(item, "name"):
+                item.setHidden(True)
+            elif query != "":
+                item.setHidden(query not in item.name.lower() and query not in item.directory.lower())
+            else:
+                item.setHidden(False)
+
 
 class PackItem(QListWidgetItem):
     def __init__(self, packList, filePath = None):
@@ -916,6 +974,10 @@ class ModViewer(QWidget):
         self.selectionChanged(selectedMod)
 
     def selectionChanged(self, current):
+        # Nothing is selected so just don't change.
+        if current is None or not hasattr(current, "name"):
+            return
+
         # Set title
         truncateConstant = 26
         title = current.name
@@ -946,11 +1008,24 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Isaac Mod Manager")
 
         # Add mod list.
-        self.modList = ModList()
+        self.modListDockWidget = QWidget()
+        self.modListDockLayout = QBoxLayout(QBoxLayout.Direction.TopToBottom)
         self.modListDock = QDockWidget("Mods")
-        self.modListDock.setWidget(self.modList)
         self.modListDock.setObjectName("ModListDock")
         self.modListDock.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
+
+        # Create mod list.
+        self.modList = ModList()
+
+        # Add mod list toolbar.
+        self.modToolbar = ModListToolbar(self.modList)
+
+        # Add widgets to dock.
+        self.modListDockLayout.addWidget(self.modToolbar)
+        self.modListDockLayout.addWidget(self.modList)
+
+        self.modListDockWidget.setLayout(self.modListDockLayout)
+        self.modListDock.setWidget(self.modListDockWidget)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.modListDock)
 
         # Add pack list.
