@@ -2,7 +2,12 @@ import sys
 import os
 import re
 import uuid
+import cv2
+import requests
+import threading, time
+
 from datetime import datetime as date
+from skimage import io
 from PySide6.QtCore import *
 from PySide6.QtGui import *
 from PySide6.QtWidgets import *
@@ -11,10 +16,14 @@ import defusedxml.ElementTree as ET
 import xml.etree.ElementTree as OtherET
 import qtawesome as qta
 import bbcode
+from bs4 import BeautifulSoup
 
 STEAM_PATH = None
+WORKSHOP_ITEM_URL = "https://steamcommunity.com/sharedfiles/filedetails/?id="
 
 selectedMod = None
+iconQueueOpen = True
+iconQueue = []
 
 # Taken from Basement Renovator.
 def getSteamPath():
@@ -82,6 +91,54 @@ def applyDefaultSettings(settings):
 
     getModsFolderPath()
 
+def parseWorkshopPage(html):
+    soup = BeautifulSoup(html, "html.parser")
+    tag = soup.find("img", recursive=True, attrs={"id":"previewImageMain"})
+    if tag is not None:
+        return tag.attrs["src"]
+
+    return None
+
+def handleIconQueue():
+    while iconQueueOpen:
+        if len(iconQueue) > 0:
+            queued = iconQueue.pop(0)
+            filePath = f"cache/thumb-{queued.workshopId}.png"
+
+            if not os.path.exists(filePath):
+                fetched = requests.get(WORKSHOP_ITEM_URL + queued.workshopId)
+                html = fetched.content
+                parsed = parseWorkshopPage(html)
+                if parsed is not None:
+                    if not os.path.exists("cache/") or not os.path.isdir("cache/"):
+                        os.makedirs("cache/")
+
+                    imgData = io.imread(parsed)
+
+                    # cv2 uses BGR for some reason so swap stuff.
+                    b,g,r = cv2.split(imgData)
+                    rgbImgData = cv2.merge([r,g,b])
+
+                    cv2.imwrite(filePath, cv2.resize(rgbImgData, (64, 64)))
+
+                    modIcon = QPixmap(filePath)
+                    queued.thumbnail.setIcon(modIcon)
+                else:
+                    print(f"Could not grab icon for workshop id {queued.workshopId}")
+
+                    modIcon = QPixmap("resources/no_icon.png")
+                    queued.thumbnailLabel.setText("Cannot download!")
+                    queued.thumbnail.setIcon(modIcon)
+                    queued.downloadFailure = True
+            else:
+                modIcon = QPixmap(filePath)
+                queued.thumbnail.setIcon(modIcon)
+
+            queued.thumbnail.setEnabled(True)
+            queued.thumbnailLabel.setVisible(True)
+
+        time.sleep(1)
+
 # https://www.geeksforgeeks.org/pyqt5-scrollable-label/
 class ScrollLabel(QScrollArea):
 
@@ -131,13 +188,53 @@ class ModItem(QListWidgetItem):
             self.thumbnail.setPixmap(sadIcon)
             self.label = QLabel(f"<font size=5>Failed to read mod data!</font><br><font size=3><i>{folderPath}</i></font>")
         else:
-            # TODO: Get mod icon if workshop upload.
             modIcon = QPixmap()
             modIcon.size().setWidth(64)
             modIcon.size().setHeight(64)
-            modIcon.load("resources/no_icon.png")
-            self.thumbnail = QLabel()
-            self.thumbnail.setPixmap(modIcon)
+
+            self.workshopThumbLoaded = False
+
+            if hasattr(self, "workshopId"):
+                workshopThumb = f"cache/thumb-{self.workshopId}.png"
+                if os.path.exists(workshopThumb):
+                    modIcon.load(workshopThumb)
+                    self.workshopThumbLoaded = True
+                else:
+                    modIcon.load("resources/no_icon.png")
+            else:
+                modIcon.load("resources/no_icon.png")
+
+            self.thumbnail = QPushButton()
+            self.thumbnail.setIcon(modIcon)
+            self.thumbnail.setIconSize(QSize(64, 64))
+            self.thumbnail.setEnabled(True)
+
+            self.thumbnail.setStyleSheet("background-color: rgba(255, 255, 255, 0);")
+
+            if hasattr(self, "workshopId"):
+                self.thumbnail.setMouseTracking(True)
+                self.thumbnail.clicked.connect(self.thumbnailClick)
+
+                self.thumbnailLabel = QLabel(self.thumbnail)
+                self.thumbnailLabel.setText("Click to download thumbnail")
+                self.thumbnailLabel.setWordWrap(True)
+                self.thumbnailLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.thumbnailLabel.setObjectName("thumbnailLabel")
+                self.thumbnailLabel.setTextFormat(Qt.TextFormat.RichText)
+                self.thumbnailLabel.setStyleSheet(
+                    """
+                    QLabel#thumbnailLabel {
+                        color: transparent;
+                        background-color: rgba(0, 0, 0, 0);
+                    }
+
+                    QLabel#thumbnailLabel:hover {
+                        color: white;
+                        background-color: rgba(0, 0, 0, 0.5);
+                    }
+                    """
+                )
+                self.thumbnailLabel.setFixedSize(64, 64)
 
             # Truncate text if too long.
             name = self.name
@@ -176,6 +273,39 @@ class ModItem(QListWidgetItem):
         # Set item size.
         self.widget.setLayout(self.layout)
         self.setSizeHint(QSize(200, 70))
+
+    def thumbnailClick(self):
+        if hasattr(self, "downloadFailure"):
+            return
+
+        if not hasattr(self, "workshopId"):
+            return
+
+        if self.workshopThumbLoaded:
+            workshopThumb = f"cache/thumb-{self.workshopId}.png"
+            if os.path.exists(workshopThumb):
+                os.remove(workshopThumb)
+
+            modIcon = QPixmap()
+            modIcon.size().setWidth(64)
+            modIcon.size().setHeight(64)
+            modIcon.load("resources/no_icon.png")
+            self.thumbnail.setIcon(modIcon)
+
+            self.thumbnailLabel.setText("Click to download thumbnail")
+            self.workshopThumbLoaded = False
+        else:
+            modIcon = QPixmap()
+            modIcon.size().setWidth(64)
+            modIcon.size().setHeight(64)
+            self.thumbnail.setEnabled(False)
+            iconQueue.append(self)
+            self.thumbnail.setIcon(modIcon)
+
+            self.thumbnailLabel.setVisible(False)
+            self.thumbnailLabel.setText("Click to delete thumbnail")
+            self.workshopThumbLoaded = True
+
 
     # Toggle the mod on or off.
     def toggleMod(self):
@@ -832,6 +962,12 @@ class MainWindow(QMainWindow):
                 item.serialize()
                 print(f"Serialized mod {item.name}")
 
+    def closeEvent(self, event):
+        global iconQueueOpen
+        iconQueueOpen = False
+
+        event.accept()
+
 
 if __name__ == "__main__":
     app = QApplication([])
@@ -843,5 +979,8 @@ if __name__ == "__main__":
     widget.setMaximumSize(1200, 800)
 
     widget.show()
+
+    thread = threading.Thread(target=handleIconQueue)
+    thread.start()
 
     sys.exit(app.exec())
