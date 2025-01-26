@@ -1,7 +1,7 @@
 import sys
 import os
 import re
-import string
+import uuid
 from datetime import datetime as date
 from PySide6.QtCore import *
 from PySide6.QtGui import *
@@ -312,6 +312,7 @@ class PackItem(QListWidgetItem):
 
         dateNow = date.now().strftime("%H:%M:%S")
         self.name = "New Pack (" + dateNow + ")"
+        self.uuid = str(uuid.uuid4())
         self.dateCreated = dateNow
         self.dateModified = dateNow
         self.mods = []
@@ -358,9 +359,11 @@ class PackItem(QListWidgetItem):
 
         self.export = QPushButton("Export")
         self.buttonGrid.addWidget(self.export, 1, 0, 1, 1)
+        self.export.clicked.connect(self.exportPack)
 
         self.delete = QPushButton("Delete")
         self.buttonGrid.addWidget(self.delete, 1, 1, 1, 1)
+        self.delete.clicked.connect(self.remove)
 
         self.layout.addLayout(self.buttonGrid)
         self.apply.setVisible(False)
@@ -397,6 +400,33 @@ class PackItem(QListWidgetItem):
         self.mods.remove(directory)
         self.setLabel()
 
+    def remove(self, cleanEntry):
+
+        # Just remove the entry from the list without prompting a dialog.
+        if cleanEntry:
+            for x in range(self.packList.count()):
+                item = self.packList.item(x)
+                if hasattr(item, "uuid") and item.uuid == self.uuid:
+                    self.packList.takeItem(x)
+
+            return
+
+        confirmation = QMessageBox()
+        confirmation.setText(f'Are you sure you want to delete pack "{self.name}"?')
+        confirmation.setInformativeText('This action is irreversible.')
+        confirmation.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel)
+        confirmation.setDefaultButton(QMessageBox.StandardButton.Yes)
+
+        ret = confirmation.exec()
+        if ret == QMessageBox.StandardButton.Yes:
+            if os.path.exists(self.filePath):
+                os.remove(self.filePath)
+
+            for x in range(self.packList.count()):
+                item = self.packList.item(x)
+                if hasattr(item, "uuid") and item.uuid == self.uuid:
+                    self.packList.takeItem(x)
+
     def rename(self):
         self.name = self.title.displayText()
         self.packList.updateModViewerPackList()
@@ -424,6 +454,19 @@ class PackItem(QListWidgetItem):
 
         self.name = name.text
 
+        uuid = root.find("uuid")
+        if uuid == None:
+            print(f"No UUID found for pack of path {filePath}")
+            return False
+
+        for x in range(self.packList.count()):
+            item = self.packList.item(x)
+            if hasattr(item, "uuid") and item.uuid == uuid.text:
+                print(f"Pack of path {filePath} is already loaded!")
+                return False
+
+        self.uuid = uuid.text
+
         # Get date information.
         dateNow = date.now().strftime("%H:%M:%S")
         dateTag = root.find("date")
@@ -448,13 +491,17 @@ class PackItem(QListWidgetItem):
         return True
 
 
-    def serialize(self):
+    def serialize(self, forcePath = None):
         # Serialize as XML.
         root = OtherET.Element("modpack")
 
         # Name tag.
         name = OtherET.SubElement(root, "name")
         name.text = self.name
+
+        # UUID tag.
+        uuid = OtherET.SubElement(root, "uuid")
+        uuid.text = self.uuid
 
         # Date tag.
         dateNow = date.now().strftime("%H:%M:%S")
@@ -474,21 +521,33 @@ class PackItem(QListWidgetItem):
         tree = OtherET.ElementTree(root)
         OtherET.indent(tree, space="\t", level=0)
 
-        if hasattr(self, "filePath"):
-            if os.path.exists(self.filePath) and os.path.isfile(self.filePath):
-                os.remove(self.filePath)
-
         # Find file path.
         # https://stackoverflow.com/a/7406369
         keepCharacters = (' ','.','_')
         filename = "".join(c for c in self.name if c.isalnum() or c in keepCharacters).rstrip()
 
         # Write (for real).
-        self.filePath = "packs/" + filename + ".xml"
-        tree.write(self.filePath, encoding="utf-8")
+        filePath = "packs/" + filename + ".xml"
+
+        # Only set the filepath if it's NOT being exported.
+        if forcePath:
+            filePath = forcePath
+            tree.write(filePath, encoding="utf-8")
+        else:
+            self.filePath = filePath
+            tree.write(self.filePath, encoding="utf-8")
 
 
         print(f"Successfully saved pack {self.name}")
+
+    def exportPack(self):
+        dialog = QFileDialog()
+        dialog.setFileMode(QFileDialog.FileMode.AnyFile)
+        dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+        dialog.setNameFilter("Packs (*.xml)")
+        dialog.setLabelText(QFileDialog.DialogLabel.FileName, "Export pack")
+        dialog.fileSelected.connect(self.serialize)
+        dialog.exec()
 
     def applyPack(self):
         if len(self.mods) == 0:
@@ -548,23 +607,57 @@ class PackList(QListWidget):
         self.setMinimumWidth(400)
 
         # Create add pack button.
-        self.newPackItem = QListWidgetItem()
-        self.newPackWidget = QWidget()
-        self.newPackButton = QPushButton("Add", self.newPackWidget)
+        self.packToolsItem = QListWidgetItem()
+        self.packToolsWidget = QWidget()
+        self.packToolsLayout = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+
+        self.newPackButton = QPushButton("Add", self.packToolsWidget)
+        self.packToolsLayout.addWidget(self.newPackButton)
         self.newPackButton.clicked.connect(self.addPack)
-        self.addItem(self.newPackItem)
-        self.setItemWidget(self.newPackItem, self.newPackWidget)
+
+        # Create import pack button.
+        self.importPackButton = QPushButton("Import", self.packToolsWidget)
+        self.packToolsLayout.addWidget(self.importPackButton)
+        self.importPackButton.clicked.connect(self.importPack)
+
+        # Create pack filter box.
+        self.filterBox = QLineEdit()
+
+        self.packToolsWidget.setLayout(self.packToolsLayout)
+        self.packToolsItem.setSizeHint(QSize(200, 40))
+        self.packToolsLayout.addStretch()
+        self.addItem(self.packToolsItem)
+        self.setItemWidget(self.packToolsItem, self.packToolsWidget)
 
         self.loadPacks()
+
+    def importPack(self):
+        dialog = QFileDialog()
+        dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
+        dialog.setNameFilter("Packs (*.xml)")
+        dialog.setLabelText(QFileDialog.DialogLabel.FileName, "Import pack")
+        dialog.fileSelected.connect(self.importedFile)
+        dialog.exec()
+
+    def importedFile(self, filePath):
+        newPack = PackItem(self, filePath)
+        if newPack.loaded:
+            self.addItem(newPack)
+            self.setItemWidget(newPack, newPack.widget)
+            self.updateModViewerPackList()
+        else:
+            newPack.remove(True)
 
     def addPack(self):
         newPack = PackItem(self, None)
         self.addItem(newPack)
         self.setItemWidget(newPack, newPack.widget)
+        self.updateModViewerPackList()
 
     def updateModViewerPackList(self):
         if self.modViewer is not None:
             self.modViewer.createPackList(self)
+            print("whahahaht")
 
     def loadPacks(self):
         packsPath = "packs/"
