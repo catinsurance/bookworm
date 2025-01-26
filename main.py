@@ -273,6 +273,7 @@ class ModList(QListWidget):
         self.setAutoScroll(True)
         self.setDragEnabled(False)
         self.setBaseSize(QSize(400, self.baseSize().height()))
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self.setMinimumWidth(400)
 
         self.loadMods()
@@ -571,6 +572,8 @@ class MiniPackItem(QListWidgetItem):
         self.widget = QWidget()
         self.layout = QHBoxLayout()
 
+        self.suppressChangeEvent = False
+
         self.label = QLabel(pack.name)
         self.layout.addWidget(self.label, alignment=Qt.AlignmentFlag.AlignLeft)
 
@@ -583,7 +586,9 @@ class MiniPackItem(QListWidgetItem):
         self.setSizeHint(QSize(200, 30))
 
     def checkChanged(self):
-        print(f"selecte mod {selectedMod}")
+        if self.suppressChangeEvent:
+            return
+
         if selectedMod is not None:
             if self.checkbox.isChecked():
                 self.pack.addMod(selectedMod.directory)
@@ -604,6 +609,7 @@ class PackList(QListWidget):
         self.setAutoScroll(True)
         self.setDragEnabled(False)
         self.setBaseSize(QSize(400, self.baseSize().height()))
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self.setMinimumWidth(400)
 
         # Create add pack button.
@@ -622,6 +628,11 @@ class PackList(QListWidget):
 
         # Create pack filter box.
         self.filterBox = QLineEdit()
+        self.packToolsLayout.addWidget(self.filterBox, stretch=2)
+        self.filterBox.setPlaceholderText("Search...")
+        self.filterBox.editingFinished.connect(self.filter)
+
+        self.packToolsItem.setFlags(self.packToolsItem.flags() & ~Qt.ItemFlag.ItemIsSelectable)
 
         self.packToolsWidget.setLayout(self.packToolsLayout)
         self.packToolsItem.setSizeHint(QSize(200, 40))
@@ -658,6 +669,14 @@ class PackList(QListWidget):
         if self.modViewer is not None:
             self.modViewer.createPackList(self)
             print("whahahaht")
+
+    def filter(self):
+        query = self.filterBox.displayText().lower()
+        for i in range(self.count()):
+            item = self.item(i)
+            if hasattr(item, "name"):
+                item.setHidden(query not in item.name.lower())
+
 
     def loadPacks(self):
         packsPath = "packs/"
@@ -725,9 +744,14 @@ class ModViewer(QWidget):
         for x in range(self.addPackList.count()):
             item = self.addPackList.item(x)
             if selectedMod is not None and selectedMod.directory in item.pack.mods:
+
+                item.suppressChangeEvent = True
                 item.checkbox.setCheckState(Qt.CheckState.Checked)
+                item.suppressChangeEvent = False
             else:
+                item.suppressChangeEvent = True
                 item.checkbox.setCheckState(Qt.CheckState.Unchecked)
+                item.suppressChangeEvent = False
 
 
     def parseBBCode(self, text):
