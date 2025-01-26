@@ -565,6 +565,8 @@ class PackItem(QListWidgetItem):
                 if hasattr(item, "uuid") and item.uuid == self.uuid:
                     self.packList.takeItem(x)
 
+            self.packList.updateModViewerPackList()
+
     def rename(self):
         self.name = self.title.displayText()
         self.packList.updateModViewerPackList()
@@ -767,7 +769,7 @@ class PackList(QListWidget):
         self.filterBox = QLineEdit()
         self.packToolsLayout.addWidget(self.filterBox, stretch=2)
         self.filterBox.setPlaceholderText("Search...")
-        self.filterBox.editingFinished.connect(self.filter)
+        self.filterBox.textChanged.connect(self.filter)
 
         self.packToolsItem.setFlags(self.packToolsItem.flags() & ~Qt.ItemFlag.ItemIsSelectable)
 
@@ -805,7 +807,6 @@ class PackList(QListWidget):
     def updateModViewerPackList(self):
         if self.modViewer is not None:
             self.modViewer.createPackList(self)
-            print("whahahaht")
 
     def filter(self):
         query = self.filterBox.displayText().lower()
@@ -859,7 +860,7 @@ class ModViewer(QWidget):
         # Add/remove to pack button.
         self.addPackLayout = QBoxLayout(QBoxLayout.Direction.TopToBottom)
 
-        self.addPackLabel = QLabel("<h2>Included in packs:</h2>")
+        self.addPackLabel = QLabel("<h2>Include in packs:</h2>")
         self.addPackLayout.addWidget(self.addPackLabel)
 
         self.addPackList = QListWidget()
