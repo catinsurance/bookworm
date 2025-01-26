@@ -216,7 +216,11 @@ class ModItem(QListWidgetItem):
                 self.thumbnail.clicked.connect(self.thumbnailClick)
 
                 self.thumbnailLabel = QLabel(self.thumbnail)
-                self.thumbnailLabel.setText("Click to download thumbnail")
+                if self.workshopThumbLoaded:
+                    self.thumbnailLabel.setText("Click to delete thumbnail")
+                else:
+                    self.thumbnailLabel.setText("Click to download thumbnail")
+
                 self.thumbnailLabel.setWordWrap(True)
                 self.thumbnailLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.thumbnailLabel.setObjectName("thumbnailLabel")
