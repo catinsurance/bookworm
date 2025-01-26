@@ -246,6 +246,7 @@ class ModItem(QListWidgetItem):
             self.checkbox = QPushButton()
             self.checkbox.iconDisabled = qta.icon("fa5s.square")
             self.checkbox.iconEnabled = qta.icon("fa5s.check-square")
+            self.checkbox.setStyleSheet("background-color: rgba(255, 255, 255, 0);")
 
             if self.enabled:
                 self.checkbox.setIcon(self.checkbox.iconEnabled)
@@ -960,7 +961,6 @@ class MainWindow(QMainWindow):
             item = self.packList.item(x)
             if hasattr(item, "serialize"):
                 item.serialize()
-                print(f"Serialized mod {item.name}")
 
     def closeEvent(self, event):
         global iconQueueOpen
