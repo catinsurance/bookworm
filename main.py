@@ -2,7 +2,6 @@ import sys
 import os
 import re
 import uuid
-import cv2
 import requests
 import threading, time
 
@@ -19,6 +18,7 @@ import bbcode
 from bs4 import BeautifulSoup
 
 STEAM_PATH = None
+WORKSHOP_QUERY_WAIT = 0.5
 WORKSHOP_ITEM_URL = "https://steamcommunity.com/sharedfiles/filedetails/?id="
 
 selectedMod = None
@@ -90,6 +90,8 @@ def applyDefaultSettings(settings):
     # Create default config file.
 
     getModsFolderPath()
+    if settings.value("AutomaticThumbnailDownload") is None:
+        settings.setValue("AutomaticThumbnailDownload", "1")
 
 def parseWorkshopPage(html):
     soup = BeautifulSoup(html, "html.parser")
@@ -113,13 +115,10 @@ def handleIconQueue():
                     if not os.path.exists("cache/") or not os.path.isdir("cache/"):
                         os.makedirs("cache/")
 
-                    imgData = io.imread(parsed)
+                    imgData = requests.get(parsed)
 
-                    # cv2 uses BGR for some reason so swap stuff.
-                    b,g,r = cv2.split(imgData)
-                    rgbImgData = cv2.merge([r,g,b])
-
-                    cv2.imwrite(filePath, cv2.resize(rgbImgData, (64, 64)))
+                    with open(filePath, "wb") as f:
+                        f.write(imgData.content)
 
                     modIcon = QPixmap(filePath)
                     queued.thumbnail.setIcon(modIcon)
@@ -137,7 +136,7 @@ def handleIconQueue():
             queued.thumbnail.setEnabled(True)
             queued.thumbnailLabel.setVisible(True)
 
-        time.sleep(1)
+        time.sleep(WORKSHOP_QUERY_WAIT)
 
 # https://www.geeksforgeeks.org/pyqt5-scrollable-label/
 class ScrollLabel(QScrollArea):
@@ -193,21 +192,23 @@ class ModItem(QListWidgetItem):
             modIcon.size().setHeight(64)
 
             self.workshopThumbLoaded = False
+            isAutomaticallyQuerying = False
 
             if hasattr(self, "workshopId"):
                 workshopThumb = f"cache/thumb-{self.workshopId}.png"
                 if os.path.exists(workshopThumb):
                     modIcon.load(workshopThumb)
                     self.workshopThumbLoaded = True
-                else:
-                    modIcon.load("resources/no_icon.png")
+                elif settings.value("AutomaticThumbnailDownload") == "1":
+                    isAutomaticallyQuerying = True
+                    iconQueue.append(self)
             else:
                 modIcon.load("resources/no_icon.png")
 
             self.thumbnail = QPushButton()
             self.thumbnail.setIcon(modIcon)
             self.thumbnail.setIconSize(QSize(64, 64))
-            self.thumbnail.setEnabled(True)
+            self.thumbnail.setEnabled(not isAutomaticallyQuerying)
 
             self.thumbnail.setStyleSheet("background-color: rgba(255, 255, 255, 0);")
 
@@ -222,6 +223,7 @@ class ModItem(QListWidgetItem):
                     self.thumbnailLabel.setText("Click to download thumbnail")
 
                 self.thumbnailLabel.setWordWrap(True)
+                self.thumbnailLabel.setVisible(not isAutomaticallyQuerying)
                 self.thumbnailLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.thumbnailLabel.setObjectName("thumbnailLabel")
                 self.thumbnailLabel.setTextFormat(Qt.TextFormat.RichText)
@@ -977,6 +979,7 @@ if __name__ == "__main__":
     app = QApplication([])
 
     settings = QSettings("settings.ini", QSettings.IniFormat)
+    applyDefaultSettings(settings)
 
     widget = MainWindow()
     widget.setMinimumSize(1200, 800)
