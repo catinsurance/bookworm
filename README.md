@@ -4,13 +4,10 @@
 
 I use [`pyinstaller`](https://www.geeksforgeeks.org/convert-python-script-to-exe-file/) to package the python script into an EXE. I do so in a virtual environment with only the necessary packages installed.
 
-First, use pip to install `requirements.txt`. After doing so, run the following commands:
+First, use pip to install the necessary packages:
 ```
-pip install Cython
-pip install h5py
+py pip install -r "requirements.txt"
 ```
-
-You can thank [this bug](https://github.com/h5py/h5py/issues/535) for that.
 
 Then just use pyinstaller:
 ```
