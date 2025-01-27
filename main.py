@@ -601,7 +601,7 @@ class ModListToolbar(QWidget):
 
 
 class PackItem(QListWidgetItem):
-    def __init__(self, packList, filePath = None):
+    def __init__(self, packList, filePath = None, isImported = False):
         super().__init__()
 
         self.packList = packList
@@ -615,7 +615,7 @@ class PackItem(QListWidgetItem):
         self.loaded = False
 
         if filePath is not None:
-            self.loaded = self.deserialize(filePath)
+            self.loaded = self.deserialize(filePath, isImported)
         else:
             self.loaded = True
 
@@ -713,7 +713,7 @@ class PackItem(QListWidgetItem):
                 if item.uuid == self.uuid:
                     self.packList.takeItem(x)
 
-            if os.path.exists(self.filePath):
+            if hasattr(self, "filePath") and os.path.exists(self.filePath):
                 os.remove(self.filePath)
 
             self.packList.updateModViewerPackList()
@@ -737,11 +737,12 @@ class PackItem(QListWidgetItem):
         self.title.setText(self.name)
         self.modCount.setText(f"<font size=3><i>Mods: {len(self.mods)}</i></font>")
 
-    def deserialize(self, filePath):
-        self.filePath = filePath
+    def deserialize(self, filePath, isImported):
+        if not isImported:
+            self.filePath = filePath
 
         try:
-            tree = ET.parse(self.filePath)
+            tree = ET.parse(filePath)
         except:
             print(f"Could not parse pack data at path {filePath}")
             return False
@@ -752,19 +753,41 @@ class PackItem(QListWidgetItem):
         name = root.find("name")
         if name == None:
             print(f"No name found for pack of path {filePath}")
+            QMessageBox.warning(
+                self.packList,
+                "Error",
+                f'Pack "{filePath}" could not be loaded (no name found)!'
+            )
             return False
 
         self.name = name.text
 
+        # Rename if duplicate
+        for x in range(self.packList.count()):
+            item = self.packList.item(x)
+            if item.name == self.name:
+                self.name = self.name + " (1)"
+
         uuid = root.find("uuid")
         if uuid == None:
             print(f"No UUID found for pack of path {filePath}")
+            QMessageBox.warning(
+                self.packList,
+                "Error",
+                f'Pack "{filePath}" could not be loaded (no uuid found)!'
+            )
             return False
 
         for x in range(self.packList.count()):
             item = self.packList.item(x)
             if item.uuid == uuid.text:
                 print(f"Pack of path {filePath} is already loaded!")
+                # Use `name.text` because `self.name` could be slightly altered.
+                QMessageBox.warning(
+                    self.packList,
+                    "Error",
+                    f'Pack "{name.text}" is already loaded!'
+                )
                 return False
 
         self.uuid = uuid.text
@@ -784,6 +807,11 @@ class PackItem(QListWidgetItem):
         modTag = root.find("mods")
         if modTag == None:
             print(f"No mods found for pack of path {filePath}")
+            QMessageBox.warning(
+                self.packList,
+                "Error",
+                f'Pack "{filePath}" could not be loaded (no empty or filled mod list found)!'
+            )
             return False
 
         mods = modTag.findall("mod")
@@ -823,20 +851,18 @@ class PackItem(QListWidgetItem):
         tree = OtherET.ElementTree(root)
         OtherET.indent(tree, space="\t", level=0)
 
-        # Find file path.
-        # https://stackoverflow.com/a/7406369
-        keepCharacters = (' ','.','_')
-        filename = "".join(c for c in self.name if c.isalnum() or c in keepCharacters).rstrip()
-
-        # Write (for real).
-        filePath = "packs/" + filename + ".xml"
-
-        # Only set the filepath if it's NOT being exported.
+        # Only set the filepath if it's being exported.
         if forcePath:
-            filePath = forcePath
-            tree.write(filePath, encoding="utf-8")
+            tree.write(forcePath, encoding="utf-8")
         else:
-            self.filePath = filePath
+            # Find file path.
+            if not hasattr(self, "filePath"):
+                # https://stackoverflow.com/a/7406369
+                keepCharacters = (' ','.','_')
+                filename = "".join(c for c in self.name if c.isalnum() or c in keepCharacters).rstrip()
+
+                self.filePath = "packs/" + filename + ".xml"
+
             tree.write(self.filePath, encoding="utf-8")
 
         print(f"Successfully saved pack {self.name}")
@@ -994,7 +1020,7 @@ class PackListToolbar(QWidget):
         dialog.exec()
 
     def importedFile(self, filePath):
-        newPack = PackItem(self.packList, filePath)
+        newPack = PackItem(self.packList, filePath, True)
         if newPack.loaded:
             self.packList.addItem(newPack)
             self.packList.setItemWidget(newPack, newPack.widget)
