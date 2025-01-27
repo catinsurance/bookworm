@@ -6,6 +6,7 @@ import requests
 import threading, time
 
 from datetime import datetime as date
+from PIL import Image
 from PySide6.QtCore import *
 from PySide6.QtGui import *
 from PySide6.QtWidgets import *
@@ -148,6 +149,12 @@ def handleIconQueue():
                     if iconProcessing:
                         with open(filePath, "wb") as f:
                             f.write(imgData.content)
+
+                        # Resize to save on space.
+                        # It only displays as 64x64 anyway.
+                        image = Image.open(filePath)
+                        resized = image.resize((64, 64))
+                        resized.save(filePath)
 
                         modIcon = QPixmap(filePath)
                         queued.thumbnail.setIcon(modIcon)
@@ -1174,6 +1181,12 @@ class MainWindow(QMainWindow):
         self.fileMenu.addAction(self.locateMods)
         self.locateMods.triggered.connect(self.locateModsFolder)
 
+        self.disableAutoDownload = QAction("Disable automatic thumbnail download", self)
+        self.fileMenu.addAction(self.disableAutoDownload)
+        self.disableAutoDownload.setCheckable(True)
+        self.disableAutoDownload.setChecked(settings.value("AutomaticThumbnailDownload") == "0")
+        self.disableAutoDownload.toggled.connect(self.toggleAutoThumbnailDownload)
+
         self.exitProgram = QAction("Exit", self)
         self.fileMenu.addAction(self.exitProgram)
         self.exitProgram.triggered.connect(self.close)
@@ -1184,6 +1197,23 @@ class MainWindow(QMainWindow):
 
         global iconProcessing
         iconProcessing = False
+
+    def toggleAutoThumbnailDownload(self):
+        global iconQueueOpen
+        if settings.value("AutomaticThumbnailDownload") == "1":
+            settings.setValue("AutomaticThumbnailDownload", "0")
+            iconQueueOpen = False
+            iconQueue.clear()
+        else:
+            settings.setValue("AutomaticThumbnailDownload", "1")
+            iconQueueOpen = True
+
+            # Restart icon queue thread.
+            thread = threading.Thread(target=handleIconQueue)
+            thread.start()
+
+            # Reload mod list.
+            self.modList.loadMods()
 
     def modFolderLocated(self):
         global iconProcessing
