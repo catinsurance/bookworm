@@ -12,7 +12,6 @@ from PySide6.QtWidgets import *
 
 import defusedxml.ElementTree as ET
 import xml.etree.ElementTree as OtherET
-import qtawesome as qta
 import bbcode
 from bs4 import BeautifulSoup
 
@@ -22,7 +21,29 @@ WORKSHOP_ITEM_URL = "https://steamcommunity.com/sharedfiles/filedetails/?id="
 
 selectedMod = None
 iconQueueOpen = True
+iconProcessing = False
 iconQueue = []
+
+class DirectoryLocationDialog(QFileDialog):
+    def __init__(self, mainWindow = None):
+        super().__init__()
+
+        self.mainWindow = mainWindow
+
+        self.setFileMode(QFileDialog.FileMode.Directory)
+        self.setNameFilter("Mods Folder")
+        self.setLabelText(QFileDialog.DialogLabel.FileName, "Locate mods folder")
+        self.fileSelected.connect(self.directorySelected)
+
+        self.exec()
+
+    def directorySelected(self, path):
+        if os.path.isdir(path):
+            settings.setValue("ModsFolder", path)
+
+        if self.mainWindow is not None:
+            self.mainWindow.modFolderLocated()
+
 
 # Taken from Basement Renovator.
 def getSteamPath():
@@ -33,13 +54,14 @@ def getSteamPath():
         ).value("SteamPath")
     return STEAM_PATH
 
-# TODO: Make this function prompt the user to locate the Isaac install directory themselves.
-def locatePath():
-    pass
-
 # Based on code from Basement Renovator.
-def getModsFolderPath():
+def getModsFolderPath(mainWindow = None):
     modsFolderPath = settings.value("ModsFolder")
+    mainWindowProvided = False
+
+    # This means we're trying to relocate it.
+    if mainWindow is not None:
+        modsFolderPath = None
 
     if modsFolderPath:
         # Return if folder exists at path, otherwise continue.
@@ -50,7 +72,8 @@ def getModsFolderPath():
     steamPath = getSteamPath()
     if not steamPath:
         # Could not find the Steam directory
-        modsFolderPath = locatePath()
+        DirectoryLocationDialog(mainWindow)
+        mainWindowProvided = True
     else:
         # Get Isaac path
         libconfig = os.path.join(steamPath, "steamapps", "libraaryfolders.vdf")
@@ -72,16 +95,20 @@ def getModsFolderPath():
                     "The Binding of Isaac Rebirth",
                 )
                 if not QFile.exists(installPath):
-                    modsFolderPath = locatePath()
+                    DirectoryLocationDialog(mainWindow)
+                    mainWindowProvided = True
 
                 # Get mods folder from this directory.
                 modsFolderPath = os.path.join(installPath, "mods")
+                settings.setValue("ModsFolder", modsFolderPath)
 
         # Could not find path, make sure locate it themselves.
         if not modsFolderPath or modsFolderPath == "" or not os.path.isdir(modsFolderPath):
-            modsFolderPath = locatePath()
+            DirectoryLocationDialog(mainWindow)
+            mainWindowProvided = True
 
-    settings.setValue("ModsFolder", modsFolderPath)
+    if not mainWindowProvided:
+        mainWindow.modFolderLocated()
     return modsFolderPath
 
 
@@ -102,7 +129,9 @@ def parseWorkshopPage(html):
 
 def handleIconQueue():
     while iconQueueOpen:
+        global iconProcessing
         if len(iconQueue) > 0:
+            iconProcessing = True
             queued = iconQueue.pop(0)
             filePath = f"cache/thumb-{queued.workshopId}.png"
 
@@ -116,26 +145,32 @@ def handleIconQueue():
 
                     imgData = requests.get(parsed)
 
-                    with open(filePath, "wb") as f:
-                        f.write(imgData.content)
+                    if iconProcessing:
+                        with open(filePath, "wb") as f:
+                            f.write(imgData.content)
 
-                    modIcon = QPixmap(filePath)
-                    queued.thumbnail.setIcon(modIcon)
-                else:
+                        modIcon = QPixmap(filePath)
+                        queued.thumbnail.setIcon(modIcon)
+                elif iconProcessing:
                     print(f"Could not grab icon for workshop id {queued.workshopId}")
 
                     modIcon = QPixmap("resources/no_icon.png")
                     queued.thumbnailLabel.setText("Cannot download!")
                     queued.thumbnail.setIcon(modIcon)
                     queued.downloadFailure = True
-            else:
+            elif iconProcessing:
                 modIcon = QPixmap(filePath)
                 queued.thumbnail.setIcon(modIcon)
 
-            queued.thumbnail.setEnabled(True)
-            queued.thumbnailLabel.setVisible(True)
+            if iconProcessing:
+                queued.thumbnail.setEnabled(True)
+                queued.thumbnailLabel.setVisible(True)
+
+        iconProcessing = False
 
         time.sleep(WORKSHOP_QUERY_WAIT)
+
+    iconProcessing = False
 
 # https://www.geeksforgeeks.org/pyqt5-scrollable-label/
 class ScrollLabel(QScrollArea):
@@ -441,8 +476,9 @@ class ModList(QListWidget):
         self.loadMods()
 
     def loadMods(self):
+        self.clear()
         modsPath = getModsFolderPath()
-        if not os.path.isdir(modsPath):
+        if modsPath is None or not os.path.isdir(modsPath):
             # Something went very wrong.
             return
 
@@ -601,26 +637,22 @@ class PackItem(QListWidgetItem):
         self.layout.addWidget(self.modCount)
 
         # Create buttons in grid.
-        self.buttonGrid = QGridLayout()
+        self.buttonGrid = QHBoxLayout()
 
         self.apply = QPushButton("Apply")
-        self.buttonGrid.addWidget(self.apply, 0, 0, 1, 1)
+        self.buttonGrid.addWidget(self.apply)
         self.apply.clicked.connect(self.applyPack)
 
-        self.filter = QPushButton("Filter")
-        self.buttonGrid.addWidget(self.filter, 0, 1, 1, 1)
-
         self.export = QPushButton("Export")
-        self.buttonGrid.addWidget(self.export, 1, 0, 1, 1)
+        self.buttonGrid.addWidget(self.export)
         self.export.clicked.connect(self.exportPack)
 
         self.delete = QPushButton("Delete")
-        self.buttonGrid.addWidget(self.delete, 1, 1, 1, 1)
+        self.buttonGrid.addWidget(self.delete)
         self.delete.clicked.connect(self.remove)
 
         self.layout.addLayout(self.buttonGrid)
         self.apply.setVisible(False)
-        self.filter.setVisible(False)
         self.export.setVisible(False)
         self.delete.setVisible(False)
 
@@ -629,16 +661,14 @@ class PackItem(QListWidgetItem):
         self.setSizeHint(QSize(200, 70))
 
     def expand(self):
-        self.setSizeHint(QSize(200, 140))
+        self.setSizeHint(QSize(200, 100))
         self.apply.setVisible(True)
-        self.filter.setVisible(True)
         self.export.setVisible(True)
         self.delete.setVisible(True)
 
     def shrink(self):
         self.setSizeHint(QSize(200, 70))
         self.apply.setVisible(False)
-        self.filter.setVisible(False)
         self.export.setVisible(False)
         self.delete.setVisible(False)
 
@@ -1134,6 +1164,30 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.modViewer)
         self.modList.currentItemChanged.connect(self.modViewer.selectionChanged)
 
+        # Add toolbar
+        self.toolbar = self.menuBar()
+        self.fileMenu = self.toolbar.addMenu("&File")
+
+        self.locateMods = QAction("Locate mods folder", self)
+        self.fileMenu.addAction(self.locateMods)
+        self.locateMods.triggered.connect(self.locateModsFolder)
+
+        self.exitProgram = QAction("Exit", self)
+        self.fileMenu.addAction(self.exitProgram)
+        self.exitProgram.triggered.connect(self.close)
+
+    def locateModsFolder(self):
+        iconQueue.clear()
+        getModsFolderPath(self)
+
+        global iconProcessing
+        iconProcessing = False
+
+    def modFolderLocated(self):
+        global iconProcessing
+        iconProcessing = True
+        self.modList.loadMods()
+
     def closeEvent(self, event):
         # Disable workshop icon queue.
         global iconQueueOpen
@@ -1143,7 +1197,6 @@ class MainWindow(QMainWindow):
         for x in range(self.packList.count()):
             item = self.packList.item(x)
             item.serialize()
-
 
         event.accept()
 
