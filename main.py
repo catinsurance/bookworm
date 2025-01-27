@@ -183,7 +183,8 @@ class ModItem(QListWidgetItem):
             # Failed to load mod, tell the user and don't put any mod data.
             self.thumbnail = QLabel()
             self.thumbnail.setPixmap(QPixmap("resources/load_fail.png"))
-            self.label = QLabel(f"<font size=5>Failed to read mod data!</font><br><font size=3><i>{folderPath}</i></font>")
+            folderName = os.path.basename(folderPath)
+            self.label = QLabel(f"<font size=5>Failed to read mod data!</font><br><font size=3><i>{folderName}</i></font>")
             self.setFlags(self.flags() & ~Qt.ItemFlag.ItemIsSelectable)
         else:
             modIcon = QPixmap()
@@ -243,7 +244,7 @@ class ModItem(QListWidgetItem):
 
             # Truncate text if too long.
             name = self.name
-            truncate_length = 56
+            truncate_length = 27
             if len(name) > truncate_length:
                 name = name[0:(truncate_length - 3)] + "..."
 
@@ -467,19 +468,29 @@ class ModList(QListWidget):
             return item.name
 
 class ModListToolbar(QWidget):
-    def __init__(self, modList):
+    def __init__(self, modList, packList):
         super().__init__()
 
         self.modList = modList
+        self.packList = packList
+        self.packFilter = ""
 
         # Create a tools layout for the filter features.
         self.filterToolsLayout = QBoxLayout(QBoxLayout.Direction.LeftToRight)
         self.filterToolsLayout.setContentsMargins(0, 0, 0, 0)
 
-        self.filterButtonIcon = qta.icon("fa5s.filter").pixmap(QSize(32, 32))
-        self.filterButton = QPushButton()
-        self.filterButton.setIcon(self.filterButtonIcon)
+        self.filterButtonIconOff = QPixmap("resources/filter_off.png")
+        self.filterButtonIconOn = QPixmap("resources/filter_on.png")
+        self.filterButton = QToolButton()
+        self.filterButton.setIcon(self.filterButtonIconOff)
         self.filterButton.setIconSize(QSize(32, 32))
+
+        self.filterMenu = PackListDropdownMenu(self)
+        self.filterMenu.triggered.connect(self.choiceChanged)
+        self.refreshPackChoices()
+
+        self.filterButton.setMenu(self.filterMenu)
+        self.filterButton.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
 
         self.filterToolsLayout.addWidget(self.filterButton)
 
@@ -490,17 +501,59 @@ class ModListToolbar(QWidget):
 
         self.setLayout(self.filterToolsLayout)
 
+    def refreshPackChoices(self):
+        self.filterMenu.clear()
+        for x in range(self.packList.count()):
+            pack = self.packList.item(x)
+            name = pack.name
+            if self.packFilter == pack.name:
+                name = "[✓] " + name
+            self.filterMenu.addAction(name)
+
+    def choiceChanged(self, action):
+        actionText = action.text()
+        if actionText.startswith("[✓] "):
+            actionText = actionText.removeprefix("[✓] ")
+
+        if actionText != self.packFilter:
+            self.packFilter = actionText
+        else:
+            self.packFilter = ""
+
+        self.refreshPackChoices()
+        self.filter()
+
+        # Set icon.
+        if self.packFilter != "":
+            self.filterButton.setIcon(self.filterButtonIconOn)
+        else:
+            self.filterButton.setIcon(self.filterButtonIconOff)
+
     def filter(self):
         query = self.filterBox.displayText().lower()
         for i in range(self.modList.count()):
             item = self.modList.item(i)
 
             # Hide mods that failed to load.
-            if query != "" and not hasattr(item, "name"):
+            if (self.packFilter != "" or query != "") and not hasattr(item, "name"):
                 item.setHidden(True)
-            elif query != "":
-                item.setHidden(query not in item.name.lower() and query not in item.directory.lower())
-            else:
+            elif query != "" or self.packFilter != "":
+                showsInSearchQuery = query not in item.name.lower() and query not in item.directory.lower()
+                showsInPackFilter = False
+
+                if self.packFilter == "":
+                    showsInPackFilter = True
+                else:
+                    for x in range(self.packList.count()):
+                        pack = self.packList.item(x)
+                        if pack.name == self.packFilter and item.directory in pack.mods:
+                            showsInPackFilter = True
+
+                item.setHidden(showsInSearchQuery)
+
+                if not showsInPackFilter:
+                    item.setHidden(True)
+            elif self.packFilter == "" and query == "":
                 item.setHidden(False)
 
 
@@ -630,6 +683,17 @@ class PackItem(QListWidgetItem):
             self.packList.updateModViewerPackList()
 
     def rename(self):
+        for x in range(self.packList.count()):
+            pack = self.packList.item(x)
+            if pack.name == self.title.displayText():
+                # Name already exists, reject and tell user.
+                self.title.setText(self.name)
+                QMessageBox.warning(
+                    self.title,
+                    "Error",
+                    "This title already exists in another pack!"
+                )
+
         self.name = self.title.displayText()
         self.packList.updateModViewerPackList()
 
@@ -904,6 +968,16 @@ class PackListToolbar(QWidget):
         if self.modViewer is not None:
             self.modViewer.createPackList(self.packList)
 
+class PackListDropdownMenu(QMenu):
+    def __init__(self, toolbar):
+        super().__init__()
+
+        self.toolbar = toolbar
+
+    def showEvent(self, event):
+        self.toolbar.refreshPackChoices()
+        event.accept()
+
 class ModViewer(QWidget):
     def __init__(self):
         super().__init__()
@@ -979,7 +1053,7 @@ class ModViewer(QWidget):
             return
 
         # Set title
-        truncateConstant = 26
+        truncateConstant = 24
         title = current.name
         if len(title) > truncateConstant:
             title = title[0:truncateConstant-3] + "..."
@@ -1007,27 +1081,6 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Isaac Mod Manager")
 
-        # Add mod list.
-        self.modListDockWidget = QWidget()
-        self.modListDockLayout = QBoxLayout(QBoxLayout.Direction.TopToBottom)
-        self.modListDock = QDockWidget("Mods")
-        self.modListDock.setObjectName("ModListDock")
-        self.modListDock.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
-
-        # Create mod list.
-        self.modList = ModList()
-
-        # Add mod list toolbar.
-        self.modToolbar = ModListToolbar(self.modList)
-
-        # Add widgets to dock.
-        self.modListDockLayout.addWidget(self.modToolbar)
-        self.modListDockLayout.addWidget(self.modList)
-
-        self.modListDockWidget.setLayout(self.modListDockLayout)
-        self.modListDock.setWidget(self.modListDockWidget)
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.modListDock)
-
         # Add pack list.
         self.packListDock = QDockWidget("Packs")
         self.packListDock.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
@@ -1048,6 +1101,28 @@ class MainWindow(QMainWindow):
         self.packListDockWidget.setLayout(self.packListDockLayout)
         self.packListDock.setWidget(self.packListDockWidget)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.packListDock)
+
+        # Add mod list.
+        self.modListDockWidget = QWidget()
+        self.modListDockLayout = QBoxLayout(QBoxLayout.Direction.TopToBottom)
+        self.modListDock = QDockWidget("Mods")
+        self.modListDock.setObjectName("ModListDock")
+        self.modListDock.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
+
+        # Create mod list.
+        self.modList = ModList()
+
+        # Add mod list toolbar.
+        self.modToolbar = ModListToolbar(self.modList, self.packList)
+
+        # Add widgets to dock.
+        self.modListDockLayout.addWidget(self.modToolbar)
+        self.modListDockLayout.addWidget(self.modList)
+
+        self.modListDockWidget.setLayout(self.modListDockLayout)
+        self.modListDock.setWidget(self.modListDockWidget)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.modListDock)
+
 
         # Add mod viewer.
         self.modViewer = ModViewer()
