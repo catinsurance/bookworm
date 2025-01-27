@@ -903,6 +903,9 @@ class PackList(QListWidget):
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self.setMinimumWidth(400)
 
+        if not os.path.exists("packs/") or not os.path.isdir("packs/"):
+            os.makedirs("packs/")
+
         self.loadPacks()
 
     def loadPacks(self):
