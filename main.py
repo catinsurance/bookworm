@@ -1117,7 +1117,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("Isaac Mod Manager")
+        self.setWindowTitle("Bookworm")
+        self.setWindowIcon(QIcon("resources/app_icon.ico"))
 
         # Add pack list.
         self.packListDock = QDockWidget("Packs")
