@@ -610,7 +610,6 @@ class PackItem(QListWidgetItem):
         if filePath is not None:
             self.loaded = self.deserialize(filePath)
         else:
-            self.serialize()
             self.loaded = True
 
         if not self.loaded:
