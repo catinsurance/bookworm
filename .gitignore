@@ -2,3 +2,6 @@
 settings.ini
 /packs
 /cache
+/build
+/dist
+/main.spec

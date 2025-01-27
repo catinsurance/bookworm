@@ -833,7 +833,6 @@ class PackItem(QListWidgetItem):
             self.filePath = filePath
             tree.write(self.filePath, encoding="utf-8")
 
-
         print(f"Successfully saved pack {self.name}")
 
     def exportPack(self):
@@ -1159,6 +1158,7 @@ class MainWindow(QMainWindow):
         self.modViewer.modList = self.modList
         self.packToolbar.modViewer = self.modViewer
         self.packList.modViewer = self.modViewer
+        self.packList.modList = self.modList
         self.modViewer.createPackList(self.packList)
 
         self.setCentralWidget(self.modViewer)
