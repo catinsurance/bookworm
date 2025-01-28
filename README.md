@@ -13,10 +13,17 @@ First, use pip to install the necessary packages:
 py pip install -r "requirements.txt"
 ```
 
-Then just use pyinstaller:
+To run by itself, you can just run the python script, either by double-clicking it if Python is added to PATH, or by running it in a cmd prompt.
+```
+cd directory/with/python/script
+main.py
+```
+
+I also use Pyinstaller to package Bookworm into an `exe`:
 ```
 pyinstaller --onefile --windowed "main.py"
 ```
+Make sure that's being run in the same directory with the script. I recommend doing this in a virtual environment.
 
 ## Consider supporting me on Ko-Fi
 [If you think this project is valued higher than $0, please consider supporting me on Ko-Fi!](https://ko-fi.com/catinsurance)
