@@ -17,7 +17,7 @@ import bbcode
 from bs4 import BeautifulSoup
 
 STEAM_PATH = None
-WORKSHOP_QUERY_WAIT = 0.5
+WORKSHOP_QUERY_WAIT = 0.8
 WORKSHOP_ITEM_URL = "https://steamcommunity.com/sharedfiles/filedetails/?id="
 
 selectedMod = None
@@ -126,6 +126,20 @@ def parseWorkshopPage(html):
     if tag is not None:
         return tag.attrs["src"]
 
+    # There's no thumbnails, just an icon.
+    tag = soup.find("img", recursive=True, attrs={"class": "workshopItemPreviewImageEnlargeable"})
+    if tag is not None:
+        src = tag.attrs["src"]
+
+        # Letterboxed is true, meaning it'll have black squares to the left and right.
+        # Remove the letterbox by removing that from the end of the url.
+        if src.endswith("true"):
+            src = src.removesuffix("true")
+            src = src + "false"
+
+        return src
+
+
     return None
 
 def handleIconQueue():
@@ -162,9 +176,10 @@ def handleIconQueue():
                     print(f"Could not grab icon for workshop id {queued.workshopId}")
 
                     modIcon = QPixmap("resources/no_icon.png")
-                    queued.thumbnailLabel.setText("Cannot download!")
+                    queued.thumbnailLabel.setText("Couldn't download, click to retry")
                     queued.thumbnail.setIcon(modIcon)
-                    queued.downloadFailure = True
+                    queued.thumbnail.setEnabled(True)
+                    queued.thumbnailLabel.setVisible(True)
             elif iconProcessing:
                 modIcon = QPixmap(filePath)
                 queued.thumbnail.setIcon(modIcon)
@@ -321,10 +336,7 @@ class ModItem(QListWidgetItem):
         self.setSizeHint(QSize(200, 70))
 
     def thumbnailClick(self):
-        if hasattr(self, "downloadFailure"):
-            return
-
-        if not hasattr(self, "workshopId"):
+        if not hasattr(self, "workshopId") or self.workshopId == "0":
             return
 
         if self.workshopThumbLoaded:
