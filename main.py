@@ -194,40 +194,6 @@ def handleIconQueue():
 
     iconProcessing = False
 
-# https://www.geeksforgeeks.org/pyqt5-scrollable-label/
-class ScrollLabel(QScrollArea):
-
-    # constructor
-    def __init__(self, *args, **kwargs):
-        QScrollArea.__init__(self, *args, **kwargs)
-
-        # making widget resizable
-        self.setWidgetResizable(True)
-
-        # making qwidget object
-        content = QWidget(self)
-        self.setWidget(content)
-
-        # vertical box layout
-        lay = QVBoxLayout(content)
-
-        # creating label
-        self.label = QLabel(content)
-
-        # setting alignment to the text
-        self.label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-
-        # making label multi-line
-        self.label.setWordWrap(True)
-
-        # adding label to the layout
-        lay.addWidget(self.label)
-
-    # the setText method
-    def setText(self, text):
-        # setting text to the label
-        self.label.setText(text)
-
 class ModItem(QListWidgetItem):
     def __init__(self, folderPath):
 
@@ -1062,7 +1028,10 @@ class ModViewer(QWidget):
 
         self.titleLabel = QLabel()
         self.workshopLabel = QLabel()
-        self.descriptionLabel = ScrollLabel()
+
+        # Setup description area.
+        self.descriptionLabel = QTextBrowser()
+        self.descriptionLabel.setOpenExternalLinks(True)
 
         self.layout.addWidget(self.titleLabel)
         self.layout.addWidget(self.workshopLabel)
@@ -1101,7 +1070,7 @@ class ModViewer(QWidget):
                 item.checkbox.setCheckState(Qt.CheckState.Unchecked)
                 item.suppressChangeEvent = False
 
-
+    # Add custom rules to the bbcode parser, since Steam has some special tags.
     def parseBBCode(self, text):
         bbcodeParser = bbcode.Parser(replace_links=False)
         bbcodeParser.add_simple_formatter("h1", "<font size=5>%(value)s</font>")
@@ -1112,8 +1081,7 @@ class ModViewer(QWidget):
 
         bbcodeParser.add_simple_formatter("img", '<i>[image]</i>')
 
-        # TODO: Implement spoiler tags with this.
-        bbcodeParser.add_simple_formatter("spoiler", '<span class="spoiler">%(value)s</span>')
+        bbcodeParser.add_simple_formatter("spoiler", '<i>[start spoiler]</i> %(value)s <i>[end spoiler]</i>')
 
         return bbcodeParser.format(text)
 
@@ -1141,9 +1109,10 @@ class ModViewer(QWidget):
         else:
             self.workshopLabel.setText("Workshop ID: -")
 
-        # Set description
-
+        # Parse description.
         html = self.parseBBCode(current.description)
+
+        # Set description and update things.
         self.descriptionLabel.setText(html)
 
         global selectedMod
