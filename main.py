@@ -5,6 +5,7 @@ import uuid
 import requests
 import threading, time
 
+from enum import Enum
 from datetime import datetime as date
 from PIL import Image
 from PySide6.QtCore import *
@@ -19,6 +20,12 @@ from bs4 import BeautifulSoup
 STEAM_PATH = None
 WORKSHOP_QUERY_WAIT = 0.8
 WORKSHOP_ITEM_URL = "https://steamcommunity.com/sharedfiles/filedetails/?id="
+
+class ModSortingMode(Enum):
+    NameAscending = 1
+    NameDescending = 2
+    Enabled = 3 # Enabled with NameAscending
+    Disabled = 4 # Disabled with NameAscending
 
 selectedMod = None
 iconQueueOpen = True
@@ -200,6 +207,7 @@ class ModItem(QListWidgetItem):
         QListWidgetItem.__init__(self)
 
         self.loaded = self.loadFromFile(folderPath=folderPath)
+        self.sortingMode = ModSortingMode.NameAscending
         self.widget = QWidget()
 
         if not self.loaded:
@@ -300,6 +308,29 @@ class ModItem(QListWidgetItem):
         # Set item size.
         self.widget.setLayout(self.layout)
         self.setSizeHint(QSize(200, 70))
+
+    # Define sorting behavior for `self.sortItems()`.
+    def __lt__(self, other):
+        if not self.loaded:
+            return False
+
+        if not other.loaded:
+            return True
+
+        if self.sortingMode == ModSortingMode.NameAscending:
+            return self.name < other.name
+        elif self.sortingMode == ModSortingMode.NameDescending:
+            return self.name > other.name
+        elif self.sortingMode == ModSortingMode.Enabled:
+            if self.enabled != other.enabled:
+                return self.enabled and not other.enabled
+
+            return self.name < other.name
+        elif self.sortingMode == ModSortingMode.Disabled:
+            if self.enabled != other.enabled:
+                return not self.enabled and other.enabled
+
+            return self.name < other.name
 
     def thumbnailClick(self):
         if not hasattr(self, "workshopId") or self.workshopId == "0":
@@ -467,26 +498,15 @@ class ModList(QListWidget):
             # Something went very wrong.
             return
 
-        items = []
         modsList = os.listdir(modsPath)
         for modFolder in modsList:
             folderPath = os.path.join(modsPath, modFolder)
             if os.path.isdir(folderPath):
                 modItem = ModItem(folderPath)
-                items.append(modItem)
+                self.addItem(modItem)
+                self.setItemWidget(modItem, modItem.widget)
 
-        items.sort(key=self.isaacSort)
-        for item in items:
-            self.addItem(item)
-            self.setItemWidget(item, item.widget)
-
-    # Gets the row that the mod with name `name` should show in.
-    # Normal sorting is alphabetical case-insensitive, while this is alphabetical case-sensitive.
-    def isaacSort(self, item):
-        if not hasattr(item, "name"):
-            return "zzzzzzzzzzzzz as low as possible"
-        else:
-            return item.name
+        self.sortItems()
 
 class ModListToolbar(QWidget):
     def __init__(self, modList, packList):
@@ -495,6 +515,11 @@ class ModListToolbar(QWidget):
         self.modList = modList
         self.packList = packList
         self.packFilter = ""
+
+        # Create a layout to house everything
+        self.masterLayout = QVBoxLayout()
+        self.masterLayout.setContentsMargins(0, 0, 0, 0)
+        self.masterLayout.setSpacing(0)
 
         # Create a tools layout for the filter features.
         self.filterToolsLayout = QBoxLayout(QBoxLayout.Direction.LeftToRight)
@@ -515,12 +540,66 @@ class ModListToolbar(QWidget):
 
         self.filterToolsLayout.addWidget(self.filterButton)
 
+        # Search box
         self.filterBox = QLineEdit()
         self.filterToolsLayout.addWidget(self.filterBox, stretch=2)
         self.filterBox.setPlaceholderText("Search...")
         self.filterBox.textChanged.connect(self.filter)
 
-        self.setLayout(self.filterToolsLayout)
+        self.masterLayout.addItem(self.filterToolsLayout)
+        self.setLayout(self.masterLayout)
+
+        # Filter by category (like file explorer).
+        self.categoryWidget = QWidget()
+        self.categoryBox = QHBoxLayout()
+        self.categoryBox.setContentsMargins(0, 0, 0, 0)
+
+        self.nameCategory = QPushButton()
+        self.categoryBox.addWidget(self.nameCategory, stretch=3)
+        self.nameCategory.clicked.connect(self.sortingModeName)
+
+        self.enabledCategory = QPushButton()
+        self.categoryBox.addWidget(self.enabledCategory)
+        self.enabledCategory.clicked.connect(self.sortingModeState)
+
+        self.setSortingMode(ModSortingMode.NameAscending)
+
+        self.categoryWidget.setLayout(self.categoryBox)
+        self.masterLayout.addWidget(self.categoryWidget)
+
+    def setSortingMode(self, sortingMode):
+        self.sortingMode = sortingMode
+
+        if self.sortingMode == ModSortingMode.NameAscending:
+            self.nameCategory.setText("Name ▼")
+            self.enabledCategory.setText("State")
+        elif self.sortingMode == ModSortingMode.NameDescending:
+            self.nameCategory.setText("Name ▲")
+            self.enabledCategory.setText("State")
+        elif self.sortingMode == ModSortingMode.Enabled:
+            self.nameCategory.setText("Name")
+            self.enabledCategory.setText("State ▼")
+        elif self.sortingMode == ModSortingMode.Disabled:
+            self.nameCategory.setText("Name")
+            self.enabledCategory.setText("State ▲")
+
+        for x in range(self.modList.count()):
+            item = self.modList.item(x)
+            item.sortingMode = self.sortingMode
+
+        self.modList.sortItems()
+
+    def sortingModeName(self):
+        if self.sortingMode != ModSortingMode.NameAscending:
+            self.setSortingMode(ModSortingMode.NameAscending)
+        elif self.sortingMode == ModSortingMode.NameAscending:
+            self.setSortingMode(ModSortingMode.NameDescending)
+
+    def sortingModeState(self):
+        if self.sortingMode != ModSortingMode.Enabled:
+            self.setSortingMode(ModSortingMode.Enabled)
+        elif self.sortingMode == ModSortingMode.Enabled:
+            self.setSortingMode(ModSortingMode.Disabled)
 
     def refreshPackChoices(self):
         self.filterMenu.clear()
