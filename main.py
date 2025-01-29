@@ -21,19 +21,22 @@ STEAM_PATH = None
 WORKSHOP_QUERY_WAIT = 0.8
 WORKSHOP_ITEM_URL = "https://steamcommunity.com/sharedfiles/filedetails/?id="
 
+
 class ModSortingMode(Enum):
     NameAscending = 1
     NameDescending = 2
-    Enabled = 3 # Enabled with NameAscending
-    Disabled = 4 # Disabled with NameAscending
+    Enabled = 3  # Enabled with NameAscending
+    Disabled = 4  # Disabled with NameAscending
+
 
 selectedMod = None
 iconQueueOpen = True
 iconProcessing = False
 iconQueue = []
 
+
 class DirectoryLocationDialog(QFileDialog):
-    def __init__(self, mainWindow = None):
+    def __init__(self, mainWindow=None):
         super().__init__()
 
         self.mainWindow = mainWindow
@@ -62,8 +65,9 @@ def getSteamPath():
         ).value("SteamPath")
     return STEAM_PATH
 
+
 # Based on code from Basement Renovator.
-def getModsFolderPath(mainWindow = None):
+def getModsFolderPath(mainWindow=None):
     modsFolderPath = settings.value("ModsFolder")
     mainWindowProvided = False
 
@@ -111,7 +115,11 @@ def getModsFolderPath(mainWindow = None):
                 settings.setValue("ModsFolder", modsFolderPath)
 
         # Could not find path, make sure locate it themselves.
-        if not modsFolderPath or modsFolderPath == "" or not os.path.isdir(modsFolderPath):
+        if (
+            not modsFolderPath
+            or modsFolderPath == ""
+            or not os.path.isdir(modsFolderPath)
+        ):
             DirectoryLocationDialog(mainWindow)
             mainWindowProvided = True
 
@@ -127,14 +135,17 @@ def applyDefaultSettings(settings):
     if settings.value("AutomaticThumbnailDownload") is None:
         settings.setValue("AutomaticThumbnailDownload", "1")
 
+
 def parseWorkshopPage(html):
     soup = BeautifulSoup(html, "html.parser")
-    tag = soup.find("img", recursive=True, attrs={"id":"previewImageMain"})
+    tag = soup.find("img", recursive=True, attrs={"id": "previewImageMain"})
     if tag is not None:
         return tag.attrs["src"]
 
     # There's no thumbnails, just an icon.
-    tag = soup.find("img", recursive=True, attrs={"class": "workshopItemPreviewImageEnlargeable"})
+    tag = soup.find(
+        "img", recursive=True, attrs={"class": "workshopItemPreviewImageEnlargeable"}
+    )
     if tag is not None:
         src = tag.attrs["src"]
 
@@ -146,8 +157,8 @@ def parseWorkshopPage(html):
 
         return src
 
-
     return None
+
 
 def handleIconQueue():
     while iconQueueOpen:
@@ -201,6 +212,7 @@ def handleIconQueue():
 
     iconProcessing = False
 
+
 class ModItem(QListWidgetItem):
     def __init__(self, folderPath):
 
@@ -215,7 +227,9 @@ class ModItem(QListWidgetItem):
             self.thumbnail = QLabel()
             self.thumbnail.setPixmap(QPixmap("resources/load_fail.png"))
             folderName = os.path.basename(folderPath)
-            self.label = QLabel(f"<font size=5>Failed to read mod data!</font><br><font size=3><i>{folderName}</i></font>")
+            self.label = QLabel(
+                f"<font size=5>Failed to read mod data!</font><br><font size=3><i>{folderName}</i></font>"
+            )
             self.setFlags(self.flags() & ~Qt.ItemFlag.ItemIsSelectable)
         else:
             modIcon = QPixmap()
@@ -277,7 +291,7 @@ class ModItem(QListWidgetItem):
             name = self.name
             truncate_length = 27
             if len(name) > truncate_length:
-                name = name[0:(truncate_length - 3)] + "..."
+                name = name[0 : (truncate_length - 3)] + "..."
 
             # Add checkbox
             self.checkbox = QPushButton()
@@ -291,7 +305,9 @@ class ModItem(QListWidgetItem):
             self.checkbox.clicked.connect(self.toggleMod)
 
             # Set text.
-            self.label = QLabel(f"<font size=5>{name}</font><br><font size=3><i>{self.directory}</i></font>")
+            self.label = QLabel(
+                f"<font size=5>{name}</font><br><font size=3><i>{self.directory}</i></font>"
+            )
 
         self.layout = QHBoxLayout()
         self.layout.setContentsMargins(3, 3, 3, 3)
@@ -475,6 +491,7 @@ class ModItem(QListWidgetItem):
 
         return True
 
+
 class ModList(QListWidget):
     def __init__(self):
         super().__init__()
@@ -507,6 +524,7 @@ class ModList(QListWidget):
                 self.setItemWidget(modItem, modItem.widget)
 
         self.sortItems()
+
 
 class ModListToolbar(QWidget):
     def __init__(self, modList, packList):
@@ -638,7 +656,10 @@ class ModListToolbar(QWidget):
             if (self.packFilter != "" or query != "") and not hasattr(item, "name"):
                 item.setHidden(True)
             elif query != "" or self.packFilter != "":
-                showsInSearchQuery = query not in item.name.lower() and query not in item.directory.lower()
+                showsInSearchQuery = (
+                    query not in item.name.lower()
+                    and query not in item.directory.lower()
+                )
                 showsInPackFilter = False
 
                 if self.packFilter == "":
@@ -658,7 +679,7 @@ class ModListToolbar(QWidget):
 
 
 class PackItem(QListWidgetItem):
-    def __init__(self, packList, filePath = None, isImported = False):
+    def __init__(self, packList, filePath=None, isImported=False):
         super().__init__()
 
         self.packList = packList
@@ -759,8 +780,10 @@ class PackItem(QListWidgetItem):
 
         confirmation = QMessageBox()
         confirmation.setText(f'Are you sure you want to delete pack "{self.name}"?')
-        confirmation.setInformativeText('This action is irreversible.')
-        confirmation.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel)
+        confirmation.setInformativeText("This action is irreversible.")
+        confirmation.setStandardButtons(
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel
+        )
         confirmation.setDefaultButton(QMessageBox.StandardButton.Yes)
 
         ret = confirmation.exec()
@@ -782,9 +805,7 @@ class PackItem(QListWidgetItem):
                 # Name already exists, reject and tell user.
                 self.title.setText(self.name)
                 QMessageBox.warning(
-                    self.title,
-                    "Error",
-                    "This title already exists in another pack!"
+                    self.title, "Error", "This title already exists in another pack!"
                 )
 
         self.name = self.title.displayText()
@@ -813,7 +834,7 @@ class PackItem(QListWidgetItem):
             QMessageBox.warning(
                 self.packList,
                 "Error",
-                f'Pack "{filePath}" could not be loaded (no name found)!'
+                f'Pack "{filePath}" could not be loaded (no name found)!',
             )
             return False
 
@@ -831,7 +852,7 @@ class PackItem(QListWidgetItem):
             QMessageBox.warning(
                 self.packList,
                 "Error",
-                f'Pack "{filePath}" could not be loaded (no uuid found)!'
+                f'Pack "{filePath}" could not be loaded (no uuid found)!',
             )
             return False
 
@@ -841,9 +862,7 @@ class PackItem(QListWidgetItem):
                 print(f"Pack of path {filePath} is already loaded!")
                 # Use `name.text` because `self.name` could be slightly altered.
                 QMessageBox.warning(
-                    self.packList,
-                    "Error",
-                    f'Pack "{name.text}" is already loaded!'
+                    self.packList, "Error", f'Pack "{name.text}" is already loaded!'
                 )
                 return False
 
@@ -867,7 +886,7 @@ class PackItem(QListWidgetItem):
             QMessageBox.warning(
                 self.packList,
                 "Error",
-                f'Pack "{filePath}" could not be loaded (no empty or filled mod list found)!'
+                f'Pack "{filePath}" could not be loaded (no empty or filled mod list found)!',
             )
             return False
 
@@ -877,8 +896,7 @@ class PackItem(QListWidgetItem):
 
         return True
 
-
-    def serialize(self, forcePath = None):
+    def serialize(self, forcePath=None):
         # Serialize as XML.
         root = OtherET.Element("modpack")
 
@@ -893,10 +911,14 @@ class PackItem(QListWidgetItem):
         # Date tag.
         dateNow = date.now().strftime("%H:%M:%S")
         self.dateModified = dateNow
-        dateTag = OtherET.SubElement(root, "date", attrib={
-            "created": self.dateCreated,
-            "modified": self.dateModified,
-        })
+        dateTag = OtherET.SubElement(
+            root,
+            "date",
+            attrib={
+                "created": self.dateCreated,
+                "modified": self.dateModified,
+            },
+        )
 
         # Mod tags.
         modTag = OtherET.SubElement(root, "mods")
@@ -915,8 +937,10 @@ class PackItem(QListWidgetItem):
             # Find file path.
             if not hasattr(self, "filePath"):
                 # https://stackoverflow.com/a/7406369
-                keepCharacters = (' ','.','_')
-                filename = "".join(c for c in self.name if c.isalnum() or c in keepCharacters).rstrip()
+                keepCharacters = (" ", ".", "_")
+                filename = "".join(
+                    c for c in self.name if c.isalnum() or c in keepCharacters
+                ).rstrip()
 
                 self.filePath = "packs/" + filename + ".xml"
 
@@ -946,6 +970,7 @@ class PackItem(QListWidgetItem):
                 # If the mod is disabled and it shouldn't be.
                 if not mod.enabled and mod.directory in self.mods:
                     mod.toggleMod()
+
 
 class MiniPackItem(QListWidgetItem):
     def __init__(self, pack):
@@ -977,6 +1002,7 @@ class MiniPackItem(QListWidgetItem):
                 self.pack.addMod(selectedMod.directory)
             else:
                 self.pack.removeMod(selectedMod.directory)
+
 
 class PackList(QListWidget):
     def __init__(self):
@@ -1027,6 +1053,7 @@ class PackList(QListWidget):
     def updateModViewerPackList(self):
         if self.modViewer is not None:
             self.modViewer.createPackList(self)
+
 
 class PackListToolbar(QWidget):
     def __init__(self, packList):
@@ -1089,6 +1116,7 @@ class PackListToolbar(QWidget):
         if self.modViewer is not None:
             self.modViewer.createPackList(self.packList)
 
+
 class PackListDropdownMenu(QMenu):
     def __init__(self, toolbar):
         super().__init__()
@@ -1098,6 +1126,7 @@ class PackListDropdownMenu(QMenu):
     def showEvent(self, event):
         self.toolbar.refreshPackChoices()
         event.accept()
+
 
 class ModViewer(QWidget):
     def __init__(self):
@@ -1158,9 +1187,11 @@ class ModViewer(QWidget):
 
         bbcodeParser.add_simple_formatter("olist", "<ol>%(value)s</ol>")
 
-        bbcodeParser.add_simple_formatter("img", '<i>[image]</i>')
+        bbcodeParser.add_simple_formatter("img", "<i>[image]</i>")
 
-        bbcodeParser.add_simple_formatter("spoiler", '<i>[start spoiler]</i> %(value)s <i>[end spoiler]</i>')
+        bbcodeParser.add_simple_formatter(
+            "spoiler", "<i>[start spoiler]</i> %(value)s <i>[end spoiler]</i>"
+        )
 
         return bbcodeParser.format(text)
 
@@ -1179,8 +1210,10 @@ class ModViewer(QWidget):
         truncateConstant = 24
         title = current.name
         if len(title) > truncateConstant:
-            title = title[0:truncateConstant-3] + "..."
-        self.titleLabel.setText(f"<font size=8>{title}</font><br/><font size=3>({current.directory})</font>")
+            title = title[0 : truncateConstant - 3] + "..."
+        self.titleLabel.setText(
+            f"<font size=8>{title}</font><br/><font size=3>({current.directory})</font>"
+        )
 
         # Set workshop id.
         if hasattr(current, "workshopId"):
@@ -1199,6 +1232,7 @@ class ModViewer(QWidget):
 
         self.updatePackList()
 
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -1208,7 +1242,9 @@ class MainWindow(QMainWindow):
 
         # Add pack list.
         self.packListDock = QDockWidget("Packs")
-        self.packListDock.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
+        self.packListDock.setFeatures(
+            QDockWidget.DockWidgetFeature.NoDockWidgetFeatures
+        )
         self.packListDockWidget = QWidget()
         self.packListDockLayout = QBoxLayout(QBoxLayout.Direction.TopToBottom)
 
@@ -1248,7 +1284,6 @@ class MainWindow(QMainWindow):
         self.modListDock.setWidget(self.modListDockWidget)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.modListDock)
 
-
         # Add mod viewer.
         self.modViewer = ModViewer()
         self.modViewer.modList = self.modList
@@ -1271,7 +1306,9 @@ class MainWindow(QMainWindow):
         self.disableAutoDownload = QAction("Disable automatic thumbnail download", self)
         self.fileMenu.addAction(self.disableAutoDownload)
         self.disableAutoDownload.setCheckable(True)
-        self.disableAutoDownload.setChecked(settings.value("AutomaticThumbnailDownload") == "0")
+        self.disableAutoDownload.setChecked(
+            settings.value("AutomaticThumbnailDownload") == "0"
+        )
         self.disableAutoDownload.toggled.connect(self.toggleAutoThumbnailDownload)
 
         self.exitProgram = QAction("Exit", self)
