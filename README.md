@@ -21,9 +21,9 @@ main.py
 
 I also use Pyinstaller to package Bookworm into an `exe`:
 ```
-pyinstaller --onefile --windowed "main.py"
+pyinstaller --onefile --windowed --icon=resources/app_icon.ico "main.py"
 ```
 Make sure that's being run in the same directory with the script. I recommend doing this in a virtual environment.
 
 ## Consider supporting me on Ko-Fi
-[If you think this project is valued higher than $0, please consider supporting me on Ko-Fi!](https://ko-fi.com/catinsurance)
+[If you think my work here is worth more than $0, please consider supporting me on Ko-Fi!](https://ko-fi.com/catinsurance)
