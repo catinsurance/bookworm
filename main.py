@@ -731,6 +731,10 @@ class PackItem(QListWidgetItem):
         self.buttonGrid.addWidget(self.export)
         self.export.clicked.connect(self.exportPack)
 
+        self.duplicate = QPushButton("Duplicate")
+        self.buttonGrid.addWidget(self.duplicate)
+        self.duplicate.clicked.connect(self.duplicatePack)
+
         self.delete = QPushButton("Delete")
         self.buttonGrid.addWidget(self.delete)
         self.delete.clicked.connect(self.remove)
@@ -738,6 +742,7 @@ class PackItem(QListWidgetItem):
         self.layout.addLayout(self.buttonGrid)
         self.apply.setVisible(False)
         self.export.setVisible(False)
+        self.duplicate.setVisible(False)
         self.delete.setVisible(False)
 
         # Set item sizes.
@@ -748,12 +753,14 @@ class PackItem(QListWidgetItem):
         self.setSizeHint(QSize(200, 100))
         self.apply.setVisible(True)
         self.export.setVisible(True)
+        self.duplicate.setVisible(True)
         self.delete.setVisible(True)
 
     def shrink(self):
         self.setSizeHint(QSize(200, 70))
         self.apply.setVisible(False)
         self.export.setVisible(False)
+        self.duplicate.setVisible(False)
         self.delete.setVisible(False)
 
     def addMod(self, directory):
@@ -905,8 +912,12 @@ class PackItem(QListWidgetItem):
         name.text = self.name
 
         # UUID tag.
-        uuid = OtherET.SubElement(root, "uuid")
-        uuid.text = self.uuid
+        uuidTag = OtherET.SubElement(root, "uuid")
+        if forcePath:
+            # Exporting, generate a new tag so that it can be imported again in the same list and be fine.
+            uuidTag.text = str(uuid.uuid4())
+        else:
+            uuidTag.text = self.uuid
 
         # Date tag.
         dateNow = date.now().strftime("%H:%M:%S")
@@ -956,6 +967,31 @@ class PackItem(QListWidgetItem):
         dialog.setLabelText(QFileDialog.DialogLabel.FileName, "Export pack")
         dialog.fileSelected.connect(self.serialize)
         dialog.exec()
+
+    def makeCopiedName(self, name=None):
+        nameToCheck = name if name is not None else self.name
+        for x in range(self.packList.count()):
+            item = self.packList.item(x)
+            if item.name == nameToCheck:
+                nameToCheck += " (Copy)"
+                return self.makeCopiedName(nameToCheck)
+
+        return nameToCheck
+
+    def duplicatePack(self):
+        # Create new pack.
+        newPack = PackItem(self.packList)
+
+        newPack.name = self.makeCopiedName()
+        newPack.title.setText(newPack.name)
+
+        newPack.mods = self.mods.copy()
+        newPack.setLabel()
+
+        self.packList.addItem(newPack)
+        self.packList.setItemWidget(newPack, newPack.widget)
+
+        self.packList.updateModViewerPackList()
 
     def applyPack(self):
         if len(self.mods) == 0:
