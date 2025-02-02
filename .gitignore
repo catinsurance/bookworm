@@ -1,7 +1,10 @@
-
 settings.ini
 /packs
 /cache
 /build
 /dist
 /main.spec
+*.pyc
+
+# Just some extra stuff I want to store but don't want to push.
+/storage

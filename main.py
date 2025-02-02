@@ -12,6 +12,7 @@ from PySide6.QtCore import *
 from PySide6.QtGui import *
 from PySide6.QtWidgets import *
 
+from src.WidgetStyles import *
 import defusedxml.ElementTree as ET
 import xml.etree.ElementTree as OtherET
 import bbcode
@@ -545,7 +546,7 @@ class ModListToolbar(QWidget):
 
         self.filterButtonIconOff = QPixmap("resources/filter_off.png")
         self.filterButtonIconOn = QPixmap("resources/filter_on.png")
-        self.filterButton = QToolButton()
+        self.filterButton = PaperToolButton(PaperButtonType.Primary)
         self.filterButton.setIcon(self.filterButtonIconOff)
         self.filterButton.setIconSize(QSize(32, 32))
 
@@ -559,7 +560,7 @@ class ModListToolbar(QWidget):
         self.filterToolsLayout.addWidget(self.filterButton)
 
         # Search box
-        self.filterBox = QLineEdit()
+        self.filterBox = PaperLineEdit()
         self.filterToolsLayout.addWidget(self.filterBox, stretch=2)
         self.filterBox.setPlaceholderText("Search...")
         self.filterBox.textChanged.connect(self.filter)
@@ -572,16 +573,17 @@ class ModListToolbar(QWidget):
         self.categoryBox = QHBoxLayout()
         self.categoryBox.setContentsMargins(0, 0, 0, 0)
 
-        self.nameCategory = QPushButton()
+        self.nameCategory = PaperPushButton(PaperButtonType.Primary)
         self.categoryBox.addWidget(self.nameCategory, stretch=3)
         self.nameCategory.clicked.connect(self.sortingModeName)
 
-        self.enabledCategory = QPushButton()
+        self.enabledCategory = PaperPushButton(PaperButtonType.Primary)
         self.categoryBox.addWidget(self.enabledCategory)
         self.enabledCategory.clicked.connect(self.sortingModeState)
 
         self.setSortingMode(ModSortingMode.NameAscending)
 
+        self.categoryBox.addStretch()
         self.categoryWidget.setLayout(self.categoryBox)
         self.masterLayout.addWidget(self.categoryWidget)
 
@@ -589,17 +591,17 @@ class ModListToolbar(QWidget):
         self.sortingMode = sortingMode
 
         if self.sortingMode == ModSortingMode.NameAscending:
-            self.nameCategory.setText("Name ▼")
+            self.nameCategory.setText("Name ▾")
             self.enabledCategory.setText("State")
         elif self.sortingMode == ModSortingMode.NameDescending:
-            self.nameCategory.setText("Name ▲")
+            self.nameCategory.setText("Name ▴")
             self.enabledCategory.setText("State")
         elif self.sortingMode == ModSortingMode.Enabled:
             self.nameCategory.setText("Name")
-            self.enabledCategory.setText("State ▼")
+            self.enabledCategory.setText("State ▾")
         elif self.sortingMode == ModSortingMode.Disabled:
             self.nameCategory.setText("Name")
-            self.enabledCategory.setText("State ▲")
+            self.enabledCategory.setText("State ▴")
 
         for x in range(self.modList.count()):
             item = self.modList.item(x)
@@ -706,8 +708,8 @@ class PackItem(QListWidgetItem):
         # Create rename button.
 
         # Create name and count labels.
-        self.title = QLineEdit()
-        self.title.setFixedSize(QSize(300, 30))
+        self.title = PaperLineEdit()
+        self.title.setMinimumSize(QSize(self.title.minimumSize().width(), 40))
         f = self.title.font()
         f.setPointSize(12)
         self.title.setFont(f)
@@ -723,41 +725,37 @@ class PackItem(QListWidgetItem):
         # Create buttons in grid.
         self.buttonGrid = QHBoxLayout()
 
-        self.apply = QPushButton("Apply")
+        self.apply = PaperPushButton(PaperButtonType.Confirm, "Apply")
         self.buttonGrid.addWidget(self.apply)
         self.apply.clicked.connect(self.applyPack)
 
-        self.export = QPushButton("Export")
+        self.export = PaperPushButton(PaperButtonType.Primary, "Export")
         self.buttonGrid.addWidget(self.export)
         self.export.clicked.connect(self.exportPack)
 
-        self.duplicate = QPushButton("Duplicate")
+        self.duplicate = PaperPushButton(PaperButtonType.Primary, "Duplicate")
         self.buttonGrid.addWidget(self.duplicate)
         self.duplicate.clicked.connect(self.duplicatePack)
 
-        self.delete = QPushButton("Delete")
+        self.delete = PaperPushButton(PaperButtonType.Danger, "Delete")
         self.buttonGrid.addWidget(self.delete)
         self.delete.clicked.connect(self.remove)
 
         self.layout.addLayout(self.buttonGrid)
-        self.apply.setVisible(False)
-        self.export.setVisible(False)
-        self.duplicate.setVisible(False)
-        self.delete.setVisible(False)
 
         # Set item sizes.
         self.widget.setLayout(self.layout)
-        self.setSizeHint(QSize(200, 70))
+        self.shrink()
 
     def expand(self):
-        self.setSizeHint(QSize(200, 100))
+        self.setSizeHint(QSize(200, 120))
         self.apply.setVisible(True)
         self.export.setVisible(True)
         self.duplicate.setVisible(True)
         self.delete.setVisible(True)
 
     def shrink(self):
-        self.setSizeHint(QSize(200, 70))
+        self.setSizeHint(QSize(200, 77))
         self.apply.setVisible(False)
         self.export.setVisible(False)
         self.duplicate.setVisible(False)
@@ -1101,17 +1099,17 @@ class PackListToolbar(QWidget):
         self.packToolsLayout = QBoxLayout(QBoxLayout.Direction.LeftToRight)
         self.packToolsLayout.setContentsMargins(0, 0, 0, 0)
 
-        self.newPackButton = QPushButton("Add", self)
+        self.newPackButton = PaperPushButton(PaperButtonType.Primary, "Add", self)
         self.packToolsLayout.addWidget(self.newPackButton)
         self.newPackButton.clicked.connect(self.addPack)
 
         # Create import pack button.
-        self.importPackButton = QPushButton("Import", self)
+        self.importPackButton = PaperPushButton(PaperButtonType.Primary, "Import", self)
         self.packToolsLayout.addWidget(self.importPackButton)
         self.importPackButton.clicked.connect(self.importPack)
 
         # Create pack filter box.
-        self.filterBox = QLineEdit()
+        self.filterBox = PaperLineEdit()
         self.packToolsLayout.addWidget(self.filterBox, stretch=2)
         self.filterBox.setPlaceholderText("Search...")
         self.filterBox.textChanged.connect(self.filter)
@@ -1398,6 +1396,8 @@ if __name__ == "__main__":
 
     settings = QSettings("settings.ini", QSettings.IniFormat)
     applyDefaultSettings(settings)
+
+    QFontDatabase.addApplicationFont("./resources/fonts/foursoulv3.otf")
 
     widget = MainWindow()
     widget.setMinimumSize(1200, 800)
