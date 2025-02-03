@@ -1435,8 +1435,8 @@ if __name__ == "__main__":
     QFontDatabase.addApplicationFont("./resources/fonts/foursoulv3.otf")
 
     mainWindow = MainWindow()
-    mainWindow.setMinimumSize(1200, 800)
-    mainWindow.setMaximumSize(1200, 800)
+    mainWindow.setMinimumSize(1280, 800)
+    mainWindow.setMaximumSize(1280, 800)
 
     mainWindow.setupWidgets()
     mainWindow.show()
