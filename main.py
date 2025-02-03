@@ -728,7 +728,7 @@ class PackItem(QListWidgetItem):
         self.buttonGrid.addWidget(self.export)
         self.export.clicked.connect(self.exportPack)
 
-        self.duplicate = PaperPushButton(PaperButtonType.Primary, "Duplicate")
+        self.duplicate = PaperPushButton(PaperButtonType.Primary, "Copy")
         self.buttonGrid.addWidget(self.duplicate)
         self.duplicate.clicked.connect(self.duplicatePack)
 
@@ -765,14 +765,14 @@ class PackItem(QListWidgetItem):
         return True
 
     def expand(self):
-        self.setSizeHint(QSize(200, 120))
+        self.setSizeHint(QSize(200, 140))
         self.apply.setVisible(True)
         self.export.setVisible(True)
         self.duplicate.setVisible(True)
         self.delete.setVisible(True)
 
     def shrink(self):
-        self.setSizeHint(QSize(200, 77))
+        self.setSizeHint(QSize(200, 97))
         self.apply.setVisible(False)
         self.export.setVisible(False)
         self.duplicate.setVisible(False)
@@ -1056,6 +1056,8 @@ class PackList(QListWidget):
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self.setMinimumWidth(400)
 
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
         self.currentItemChanged.connect(self.selectionChanged)
 
         if not os.path.exists("packs/") or not os.path.isdir("packs/"):
@@ -1319,6 +1321,9 @@ class MainWindow(QMainWindow):
         self.packListDock.setFeatures(
             QDockWidget.DockWidgetFeature.NoDockWidgetFeatures
         )
+        self.packListMasterWidget = PaperLargeWidget()
+        self.packListMasterWidgetLayout = QHBoxLayout()
+
         self.packListDockWidget = QWidget()
         self.packListDockLayout = QBoxLayout(QBoxLayout.Direction.TopToBottom)
 
@@ -1334,7 +1339,11 @@ class MainWindow(QMainWindow):
         self.packListDockLayout.addWidget(self.packList)
 
         self.packListDockWidget.setLayout(self.packListDockLayout)
-        self.packListDock.setWidget(self.packListDockWidget)
+
+        self.packListMasterWidgetLayout.addWidget(self.packListDockWidget)
+        self.packListMasterWidget.setLayout(self.packListMasterWidgetLayout)
+
+        self.packListDock.setWidget(self.packListMasterWidget)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.packListDock)
 
     def setupModList(self):

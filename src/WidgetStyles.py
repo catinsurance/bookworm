@@ -9,11 +9,10 @@ def lerp(a, b, t):
 PAPER_BUTTON_HOVER_HEIGHT = 20
 
 class PaperButtonType():
-    Primary = "./resources/buttons/primary_64"
-    Danger = "./resources/buttons/danger_64"
-    Confirm = "./resources/buttons/confirm_64"
+    Primary = "./resources/backgrounds/primary_64"
+    Danger = "./resources/backgrounds/danger_64"
+    Confirm = "./resources/backgrounds/confirm_64"
 
-# 10mb for a custom font in a stupid, archaic format? SATISFACTORY!!!!
 class PaperLineEdit(QLineEdit):
     def __init__(self):
         super().__init__()
@@ -21,8 +20,60 @@ class PaperLineEdit(QLineEdit):
         self.setStyleSheet(f"""
             color: "#2f2322";
             border-width: 8px 16px 12px 16px;
-            border-image: url(./resources/search_background_64.png) 8 16 12 16 round;
+            border-image: url(./resources/backgrounds/search_background_64.png) 8 16 12 16 round;
         """)
+
+class PaperGenericWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.setStyleSheet("""
+            color: "#2f2322";
+            border-width: 8px 16px 12px 16px;
+            border-image: url(./resources/backgrounds/search_background_64.png) 8 16 12 16 round;
+        """)
+
+
+class PaperLargeWidget(QWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.setObjectName("paperDockWidget")
+        self.setContentsMargins(4, 4, 4, 4)
+        self.setStyleSheet("""
+            QWidget#paperDockWidget {
+                color: "#2f2322";
+                border-width: 32px 32px 32px 32px;
+                border-image: url(./resources/backgrounds/dock_background_96.png) 32 32 32 32 round;
+            }
+
+            QListWidget {
+                color: "#2f2322";
+                border-width: 8px 16px 12px 16px;
+                border-image: url(./resources/backgrounds/search_background_64.png) 8 16 12 16 round;
+            }
+
+            QListWidget::item {
+                color: "#2f2322";
+                border-width: 8px 8px 8px 8px;
+                border-image: url(./resources/backgrounds/listitem_primary_64.png) 8 8 8 8 round;
+            }
+
+            QListWidget::item::alternate {
+                color: "#2f2322";
+                background-color: "#e1e1e1";
+                border-width: 8px 8px 8px 8px;
+                border-image: url(./resources/backgrounds/listitem_secondary_64.png) 8 8 8 8 round;
+            }
+        """)
+
+    # Draw background.
+    def paintEvent(self, event):
+        opt = QStyleOption()
+        opt.initFrom(self)
+        painter = QPainter(self)
+        self.style().drawPrimitive(QStyle.PrimitiveElement.PE_Widget, opt, painter, self)
+
 
 class PaperToolButton(QToolButton):
     def __init__(self, paperType):
@@ -59,20 +110,20 @@ class PaperPushButton(QPushButton):
         self.setFont(self.isaacFont)
 
         self.setStyleSheet(f"""
-            border-width: 8px 16px 12px 16px;
-            border-image: url({paperType + ".png"}) 8 16 12 16 round;
+            border-width: 8px 12px 12px 12px;
+            border-image: url({paperType + ".png"}) 8 12 12 12 round;
         """)
 
     def enterEvent(self, event):
         self.setStyleSheet(f"""
-            border-width: 8px 16px 12px 16px;
-            border-image: url({self.paperType + "_highlight.png"}) 8 16 12 16 round;
+            border-width: 8px 12px 12px 12px;
+            border-image: url({self.paperType + "_highlight.png"}) 8 12 12 12 round;
         """)
         return super().enterEvent(event)
 
     def leaveEvent(self, event):
         self.setStyleSheet(f"""
-            border-width: 8px 16px 12px 16px;
-            border-image: url({self.paperType + ".png"}) 8 16 12 16 round;
+            border-width: 8px 12px 12px 12px;
+            border-image: url({self.paperType + ".png"}) 8 12 12 12 round;
         """)
         return super().leaveEvent(event)
