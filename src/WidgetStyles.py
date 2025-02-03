@@ -33,13 +33,61 @@ class PaperGenericWidget(QWidget):
             border-image: url(./resources/backgrounds/search_background_64.png) 8 16 12 16 round;
         """)
 
+# https://stackoverflow.com/a/16350754
+class PaperScrollbar(QScrollBar):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.setStyleSheet("""
+            QScrollBar {
+                background: "#766d63";
+                width: 12px;
+                margin: 0px;
+                border: none;
+            }
+
+            QScrollBar::add-line:vertical {
+                background: none;
+                border: none;
+            }
+
+            QScrollBar::sub-line:vertical {
+                background: none;
+                border: none;
+            }
+
+            QScrollBar::handle:vertical {
+                background: "#e1d0ba";
+                border-width: 8px 8px 8px 8px;
+                border-image: url(./resources/backgrounds/scrollbar_32.png) 8 8 8 8 round;
+            }
+        """)
+        self.valueChanged.connect(self.updateMask)
+        self.rangeChanged.connect(self.updateMask)
+
+    def updateMask(self):
+        opt = QStyleOptionSlider()
+        self.initStyleOption(opt)
+
+        region = QRegion(self.style().subControlRect(QStyle.ComplexControl.CC_ScrollBar, opt, QStyle.SubControl.SC_ScrollBarSlider, self))
+        self.setMask(region)
+
+    def showEvent(self, event):
+        QScrollBar.showEvent(self, event)
+        self.updateMask()
 
 class PaperLargeWidget(QWidget):
     def __init__(self):
         super().__init__()
 
+        self.dockTitle = ""
+
+        self.isaacFont = QFont("FontSouls_v3-Body")
+        self.isaacFont.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
+        self.isaacFont.setPointSize(32)
+
         self.setObjectName("paperDockWidget")
-        self.setContentsMargins(4, 4, 4, 4)
+        self.setContentsMargins(4, 32, 4, 4)
         self.setStyleSheet("""
             QWidget#paperDockWidget {
                 color: "#2f2322";
@@ -48,20 +96,20 @@ class PaperLargeWidget(QWidget):
             }
 
             QListWidget {
-                color: "#2f2322";
-                border-width: 8px 16px 12px 16px;
-                border-image: url(./resources/backgrounds/search_background_64.png) 8 16 12 16 round;
+                color: transparent;
+                background-color: transparent;
+                border: none;
             }
 
             QListWidget::item {
-                color: "#2f2322";
+                color: "#e1d0ba";
                 border-width: 8px 8px 8px 8px;
                 border-image: url(./resources/backgrounds/listitem_primary_64.png) 8 8 8 8 round;
             }
 
             QListWidget::item::alternate {
-                color: "#2f2322";
-                background-color: "#e1e1e1";
+                color: "#e1d0ba";
+                background-color: "#e1d0ba";
                 border-width: 8px 8px 8px 8px;
                 border-image: url(./resources/backgrounds/listitem_secondary_64.png) 8 8 8 8 round;
             }
@@ -73,6 +121,13 @@ class PaperLargeWidget(QWidget):
         opt.initFrom(self)
         painter = QPainter(self)
         self.style().drawPrimitive(QStyle.PrimitiveElement.PE_Widget, opt, painter, self)
+
+        # Draw title
+        painter.setFont(self.isaacFont)
+        metrics = QFontMetrics(self.isaacFont)
+        bounding = metrics.boundingRect(self.dockTitle)
+        titlePoint = QPoint((event.rect().topRight().x() // 2) - (bounding.width() // 2), 38)
+        painter.drawText(titlePoint, self.dockTitle)
 
 
 class PaperToolButton(QToolButton):

@@ -706,6 +706,7 @@ class PackItem(QListWidgetItem):
         self.title = PaperLineEdit()
         self.title.setMinimumSize(QSize(self.title.minimumSize().width(), 40))
         f = self.title.font()
+        f.setBold(True)
         f.setPointSize(12)
         self.title.setFont(f)
         self.title.editingFinished.connect(self.rename)
@@ -815,7 +816,7 @@ class PackItem(QListWidgetItem):
                 if item.uuid == self.uuid:
                     mainWindow.packList.takeItem(x)
 
-            if self.filePath is None and os.path.exists(self.filePath):
+            if self.filePath is not None and os.path.exists(self.filePath):
                 os.remove(self.filePath)
 
             mainWindow.packList.updateModViewerPackList()
@@ -1054,7 +1055,11 @@ class PackList(QListWidget):
         self.setDragEnabled(False)
         self.setBaseSize(QSize(400, self.baseSize().height()))
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        self.setSpacing(4)
         self.setMinimumWidth(400)
+
+        self.scrollbar = PaperScrollbar(self)
+        self.setVerticalScrollBar(self.scrollbar)
 
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
@@ -1321,7 +1326,10 @@ class MainWindow(QMainWindow):
         self.packListDock.setFeatures(
             QDockWidget.DockWidgetFeature.NoDockWidgetFeatures
         )
+
+        self.packListDock.setTitleBarWidget(QWidget())
         self.packListMasterWidget = PaperLargeWidget()
+        self.packListMasterWidget.dockTitle = "Packs"
         self.packListMasterWidgetLayout = QHBoxLayout()
 
         self.packListDockWidget = QWidget()
