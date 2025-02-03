@@ -217,11 +217,19 @@ def handleIconQueue():
 class ModItem(QListWidgetItem):
     def __init__(self, folderPath):
 
-        QListWidgetItem.__init__(self)
+        super().__init__()
 
         self.loaded = self.loadFromFile(folderPath=folderPath)
         self.sortingMode = ModSortingMode.NameAscending
         self.widget = QWidget()
+
+        self.thumbnailWidget = QWidget()
+        self.thumbnailWidget.setFixedSize(72, 72)
+        self.thumbnailLayout = QGridLayout()
+        self.thumbnailLayout.setContentsMargins(0, 0, 0, 0)
+
+        self.thumbnailBorder = QLabel()
+        self.thumbnailBorder.setPixmap(QPixmap("./resources/mod_icon_frame.png"))
 
         if not self.loaded:
             # Failed to load mod, tell the user and don't put any mod data.
@@ -252,11 +260,18 @@ class ModItem(QListWidgetItem):
                 modIcon.load("resources/no_icon.png")
 
             self.thumbnail = QPushButton()
+            self.thumbnail.setFixedSize(64, 64)
+            self.thumbnail.setContentsMargins(2, 2, 2, 2)
+            self.thumbnail.setEnabled(not isAutomaticallyQuerying)
+            self.thumbnail.setFixedSize(64, 64)
             self.thumbnail.setIcon(modIcon)
             self.thumbnail.setIconSize(QSize(64, 64))
-            self.thumbnail.setEnabled(not isAutomaticallyQuerying)
 
-            self.thumbnail.setStyleSheet("background-color: rgba(255, 255, 255, 0);")
+            self.thumbnailLayout.addWidget(self.thumbnail, 0, 0, Qt.AlignmentFlag.AlignCenter)
+
+            self.thumbnail.setStyleSheet("""
+                background-color: rgba(255, 255, 255, 0);
+            """)
 
             if hasattr(self, "workshopId"):
                 self.thumbnail.setMouseTracking(True)
@@ -287,6 +302,7 @@ class ModItem(QListWidgetItem):
                     """
                 )
                 self.thumbnailLabel.setFixedSize(64, 64)
+                self.thumbnailLayout.addWidget(self.thumbnailLabel, 0, 0, Qt.AlignmentFlag.AlignCenter)
 
             # Truncate text if too long.
             name = self.name
@@ -310,11 +326,13 @@ class ModItem(QListWidgetItem):
                 f"<font size=5>{name}</font><br><font size=3><i>{self.directory}</i></font>"
             )
 
-        self.layout = QHBoxLayout()
-        self.layout.setContentsMargins(3, 3, 3, 3)
+        self.thumbnailLayout.addWidget(self.thumbnailBorder, 0, 0, Qt.AlignmentFlag.AlignCenter)
 
-        self.thumbnail.setFixedSize(64, 64)
-        self.layout.addWidget(self.thumbnail, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.layout = QHBoxLayout()
+        self.layout.setContentsMargins(3, 0, 3, 0)
+
+        self.thumbnailWidget.setLayout(self.thumbnailLayout)
+        self.layout.addWidget(self.thumbnailWidget, alignment=Qt.AlignmentFlag.AlignLeft)
         self.layout.addWidget(self.label, alignment=Qt.AlignmentFlag.AlignLeft)
 
         self.layout.addStretch()
@@ -324,7 +342,7 @@ class ModItem(QListWidgetItem):
 
         # Set item size.
         self.widget.setLayout(self.layout)
-        self.setSizeHint(QSize(200, 70))
+        self.setSizeHint(QSize(200, 90))
 
     # Define sorting behavior for `self.sortItems()`.
     def __lt__(self, other):
@@ -493,19 +511,24 @@ class ModItem(QListWidgetItem):
         return True
 
 
-class ModList(QListWidget):
+class ModList(PaperListWidget):
     def __init__(self):
-        super().__init__()
+        super().__init__("#e1d0ba")
 
-        self.setAlternatingRowColors(True)
         self.setViewMode(self.ViewMode.ListMode)
         self.setSelectionMode(self.SelectionMode.SingleSelection)
         self.setResizeMode(self.ResizeMode.Adjust)
         self.setAutoScroll(True)
         self.setDragEnabled(False)
         self.setBaseSize(QSize(400, self.baseSize().height()))
+        self.setSpacing(2)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self.setMinimumWidth(400)
+
+        self.scrollbar = PaperScrollbar(PaperScrollbarType.DockedList, self)
+        self.setVerticalScrollBar(self.scrollbar)
+
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         self.loadMods()
 
@@ -701,6 +724,7 @@ class PackItem(QListWidgetItem):
 
         self.widget = QWidget()
         self.layout = QVBoxLayout()
+        self.layout.setSpacing(2)
 
         # Create name and count labels.
         self.title = PaperLineEdit()
@@ -773,7 +797,7 @@ class PackItem(QListWidgetItem):
         self.delete.setVisible(True)
 
     def shrink(self):
-        self.setSizeHint(QSize(200, 97))
+        self.setSizeHint(QSize(200, 100))
         self.apply.setVisible(False)
         self.export.setVisible(False)
         self.duplicate.setVisible(False)
@@ -1022,30 +1046,80 @@ class MiniPackItem(QListWidgetItem):
         self.suppressChangeEvent = False
 
         self.label = QLabel(pack.name)
+
+        f = self.label.font()
+        f.setBold(True)
+        f.setPointSize(10)
+        self.label.setFont(f)
+
         self.layout.addWidget(self.label, alignment=Qt.AlignmentFlag.AlignLeft)
 
-        self.checkbox = QCheckBox()
+        self.checkbox = QPushButton()
+        self.checkbox.setFixedSize(16, 16)
+        self.checkState = False
 
-        self.checkbox.checkStateChanged.connect(self.checkChanged)
+        self.refreshCheckboxStylesheet()
+
+        self.checkbox.clicked.connect(self.checkClicked)
+
         self.layout.addWidget(self.checkbox, alignment=Qt.AlignmentFlag.AlignRight)
 
         self.widget.setLayout(self.layout)
-        self.setSizeHint(QSize(200, 30))
+        self.setSizeHint(QSize(200, 50))
+
+
+    # Required after changing object name.
+    # Required after changing object name.
+    def refreshCheckboxStylesheet(self):
+        if self.checkState:
+            self.checkbox.setObjectName("modPackEnabled")
+        else:
+            self.checkbox.setObjectName("modPackDisabled")
+
+        self.checkbox.setStyleSheet(
+            """
+            QPushButton#modPackEnabled{
+                background-color: rgba(255, 255, 255, 0);
+                border-image: url(resources/mini_box_tick_on.png);
+            }
+
+            QPushButton#modPackEnabled:hover{
+                background-color: rgba(255, 255, 255, 0);
+                border-image: url(resources/mini_box_tick_on_hover.png);
+            }
+
+            QPushButton#modPackDisabled{
+                background-color: rgba(255, 255, 255, 0);
+                border-image: url(resources/mini_box_tick_off.png);
+            }
+
+            QPushButton#modPackDisabled:hover{
+                background-color: rgba(255, 255, 255, 0);
+                border-image: url(resources/mini_box_tick_off_hover.png);
+            }
+            """
+        )
+
+    def checkClicked(self):
+        self.checkState = not self.checkState
+        self.checkChanged()
 
     def checkChanged(self):
         if self.suppressChangeEvent:
             return
 
         if selectedMod is not None:
-            if self.checkbox.isChecked():
+            if self.checkState:
                 self.pack.addMod(selectedMod.directory)
             else:
                 self.pack.removeMod(selectedMod.directory)
 
+        self.refreshCheckboxStylesheet()
 
-class PackList(QListWidget):
+
+class PackList(PaperListWidget):
     def __init__(self):
-        super().__init__()
+        super().__init__("#e1d0ba")
 
         self.setAlternatingRowColors(True)
         self.setViewMode(self.ViewMode.ListMode)
@@ -1058,7 +1132,7 @@ class PackList(QListWidget):
         self.setSpacing(4)
         self.setMinimumWidth(400)
 
-        self.scrollbar = PaperScrollbar(self)
+        self.scrollbar = PaperScrollbar(PaperScrollbarType.DockedList, self)
         self.setVerticalScrollBar(self.scrollbar)
 
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -1186,26 +1260,40 @@ class ModViewer(QWidget):
     def __init__(self):
         super().__init__()
 
+        self.setObjectName("modViewer")
+        self.setContentsMargins(8, 12, 8, 8)
+        self.setStyleSheet("""
+            QWidget#modViewer {
+                color: "#2f2322";
+                border-width: 32px 32px 32px 32px;
+                border-image: url(./resources/backgrounds/modviewer_background_96.png) 32 32 32 32 round;
+            }
+        """)
+
+        self.isaacFont = QFont("FontSouls_v3-Body")
+        self.isaacFont.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
+        self.isaacFont.setPointSize(12)
+
         self.layout = QBoxLayout(QBoxLayout.Direction.TopToBottom)
 
         self.titleLabel = QLabel()
-        self.workshopLabel = QLabel()
 
         # Setup description area.
-        self.descriptionLabel = QTextBrowser()
+        self.descriptionLabel = PaperTextBrowser()
         self.descriptionLabel.setOpenExternalLinks(True)
 
         self.layout.addWidget(self.titleLabel)
-        self.layout.addWidget(self.workshopLabel)
         self.layout.addWidget(self.descriptionLabel)
 
         # Add/remove to pack button.
         self.addPackLayout = QBoxLayout(QBoxLayout.Direction.TopToBottom)
 
         self.addPackLabel = QLabel("<h2>Include in packs:</h2>")
+        self.addPackLabel.setFont(self.isaacFont)
         self.addPackLayout.addWidget(self.addPackLabel)
 
-        self.addPackList = QListWidget()
+        self.addPackList = PaperListWidget("#c5dff7")
+        self.addPackList.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.addPackLayout.addWidget(self.addPackList)
 
         self.layout.addLayout(self.addPackLayout)
@@ -1221,17 +1309,21 @@ class ModViewer(QWidget):
             self.addPackList.addItem(listItem)
             self.addPackList.setItemWidget(listItem, listItem.widget)
 
+        self.updatePackList()
+
     def updatePackList(self):
         for x in range(self.addPackList.count()):
             item = self.addPackList.item(x)
             if selectedMod is not None and selectedMod.directory in item.pack.mods:
 
                 item.suppressChangeEvent = True
-                item.checkbox.setCheckState(Qt.CheckState.Checked)
+                item.checkState = True
+                item.refreshCheckboxStylesheet()
                 item.suppressChangeEvent = False
             else:
                 item.suppressChangeEvent = True
-                item.checkbox.setCheckState(Qt.CheckState.Unchecked)
+                item.checkState = False
+                item.refreshCheckboxStylesheet()
                 item.suppressChangeEvent = False
 
     # Add custom rules to the bbcode parser, since Steam has some special tags.
@@ -1263,19 +1355,24 @@ class ModViewer(QWidget):
             return
 
         # Set title
-        truncateConstant = 24
+        truncateConstant = 22
         title = current.name
         if len(title) > truncateConstant:
             title = title[0 : truncateConstant - 3] + "..."
-        self.titleLabel.setText(
-            f"<font size=8>{title}</font><br/><font size=3>({current.directory})</font>"
-        )
 
         # Set workshop id.
+        workshopId = "-"
         if hasattr(current, "workshopId"):
-            self.workshopLabel.setText(f"Workshop ID: {current.workshopId}")
-        else:
-            self.workshopLabel.setText("Workshop ID: -")
+            workshopId = current.workshopId
+
+        truncateConstant = 36
+        directory = current.directory
+        if len(directory) > truncateConstant:
+            directory = directory[0 : truncateConstant - 3] + "..."
+
+        self.titleLabel.setText(
+            f"<font size=8><b>{title}</b></font><br/><font size=3><i>{directory} </i>/<i> Workshop ID: {workshopId}</i></font>"
+        )
 
         # Parse description.
         html = self.parseBBCode(current.description)
@@ -1288,12 +1385,27 @@ class ModViewer(QWidget):
 
         self.updatePackList()
 
+    # Draw background.
+    def paintEvent(self, event):
+        opt = QStyleOption()
+        opt.initFrom(self)
+        painter = QPainter(self)
+        self.style().drawPrimitive(QStyle.PrimitiveElement.PE_Widget, opt, painter, self)
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
         self.setWindowTitle("Bookworm")
+        self.setMinimumSize(1280, 800)
+        self.setMaximumSize(1280, 800)
+
+        self.mainBackground = QPixmap("./resources/backgrounds/library_background.png")
+        self.mainBackground = self.mainBackground.scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatio)
+        self.backgroundPalette = QPalette()
+        self.backgroundPalette.setBrush(QPalette.ColorRole.Window, self.mainBackground)
+        self.setPalette(self.backgroundPalette)
 
         # Add toolbar
         self.toolbar = self.menuBar()
@@ -1327,7 +1439,9 @@ class MainWindow(QMainWindow):
             QDockWidget.DockWidgetFeature.NoDockWidgetFeatures
         )
 
+        # Set titlebar to empty widget to remove it.
         self.packListDock.setTitleBarWidget(QWidget())
+
         self.packListMasterWidget = PaperLargeWidget()
         self.packListMasterWidget.dockTitle = "Packs"
         self.packListMasterWidgetLayout = QHBoxLayout()
@@ -1355,12 +1469,17 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.packListDock)
 
     def setupModList(self):
-                # Add mod list.
+        self.modListMasterWidget = PaperLargeWidget()
+        self.modListMasterWidget.dockTitle = "Mods"
+        self.modListMasterWidgetLayout = QHBoxLayout()
+
+        # Add mod list.
         self.modListDockWidget = QWidget()
         self.modListDockLayout = QBoxLayout(QBoxLayout.Direction.TopToBottom)
         self.modListDock = QDockWidget("Mods")
         self.modListDock.setObjectName("ModListDock")
         self.modListDock.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
+        self.modListDock.setTitleBarWidget(QWidget())
 
         # Create mod list.
         self.modList = ModList()
@@ -1373,7 +1492,11 @@ class MainWindow(QMainWindow):
         self.modListDockLayout.addWidget(self.modList)
 
         self.modListDockWidget.setLayout(self.modListDockLayout)
-        self.modListDock.setWidget(self.modListDockWidget)
+
+        self.modListMasterWidgetLayout.addWidget(self.modListDockWidget)
+        self.modListMasterWidget.setLayout(self.modListMasterWidgetLayout)
+
+        self.modListDock.setWidget(self.modListMasterWidget)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.modListDock)
 
     def setupModViewer(self):
@@ -1382,6 +1505,7 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(self.modViewer)
         self.modList.currentItemChanged.connect(self.modViewer.selectionChanged)
+        self.modViewer.selectionChanged(self.modList.item(0))
 
     def locateModsFolder(self):
         iconQueue.clear()
@@ -1435,8 +1559,6 @@ if __name__ == "__main__":
     QFontDatabase.addApplicationFont("./resources/fonts/foursoulv3.otf")
 
     mainWindow = MainWindow()
-    mainWindow.setMinimumSize(1280, 800)
-    mainWindow.setMaximumSize(1280, 800)
 
     mainWindow.setupWidgets()
     mainWindow.show()

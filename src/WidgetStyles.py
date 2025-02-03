@@ -13,54 +13,65 @@ class PaperButtonType():
     Danger = "./resources/backgrounds/danger_64"
     Confirm = "./resources/backgrounds/confirm_64"
 
+# (Resource path, background color)
+class PaperScrollbarType():
+    DockedList = ("./resources/backgrounds/scrollbar_packlist_32", "#e1d0ba")
+    ModDescription = ("./resources/backgrounds/scrollbar_description_32", "#f9f8f7")
+
 class PaperLineEdit(QLineEdit):
     def __init__(self):
         super().__init__()
 
-        self.setStyleSheet(f"""
-            color: "#2f2322";
-            border-width: 8px 16px 12px 16px;
-            border-image: url(./resources/backgrounds/search_background_64.png) 8 16 12 16 round;
-        """)
-
-class PaperGenericWidget(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
         self.setStyleSheet("""
             color: "#2f2322";
             border-width: 8px 16px 12px 16px;
             border-image: url(./resources/backgrounds/search_background_64.png) 8 16 12 16 round;
         """)
+
+class PaperTextBrowser(QTextBrowser):
+    def __init__(self):
+        super().__init__()
+
+        self.setStyleSheet("""
+            QTextBrowser {
+                color: "#2f2322";
+                border-width: 8px 16px 12px 16px;
+                border-image: url(./resources/backgrounds/textbrowser_background_64.png) 8 16 12 16 round;
+            }
+        """)
+
+        self.scrollbar = PaperScrollbar(PaperScrollbarType.ModDescription, self)
+        self.setVerticalScrollBar(self.scrollbar)
 
 # https://stackoverflow.com/a/16350754
 class PaperScrollbar(QScrollBar):
-    def __init__(self, parent=None):
+    def __init__(self, scrollbarType, parent=None):
         super().__init__(parent)
 
-        self.setStyleSheet("""
-            QScrollBar {
+        self.scrollbarType = scrollbarType
+        self.setStyleSheet(f"""
+            QScrollBar {{
                 background: "#766d63";
                 width: 12px;
                 margin: 0px;
                 border: none;
-            }
+            }}
 
-            QScrollBar::add-line:vertical {
+            QScrollBar::add-line:vertical {{
                 background: none;
                 border: none;
-            }
+            }}
 
-            QScrollBar::sub-line:vertical {
+            QScrollBar::sub-line:vertical {{
                 background: none;
                 border: none;
-            }
+            }}
 
-            QScrollBar::handle:vertical {
-                background: "#e1d0ba";
+            QScrollBar::handle:vertical {{
+                background: "{self.scrollbarType[1]}";
                 border-width: 8px 8px 8px 8px;
-                border-image: url(./resources/backgrounds/scrollbar_32.png) 8 8 8 8 round;
-            }
+                border-image: url({self.scrollbarType[0]}.png) 8 8 8 8 round;
+            }}
         """)
         self.valueChanged.connect(self.updateMask)
         self.rangeChanged.connect(self.updateMask)
@@ -75,6 +86,48 @@ class PaperScrollbar(QScrollBar):
     def showEvent(self, event):
         QScrollBar.showEvent(self, event)
         self.updateMask()
+
+class PaperListWidget(QListWidget):
+    def __init__(self, backgroundColor):
+        super().__init__()
+
+        self.setAlternatingRowColors(True)
+        self.setMouseTracking(True)
+        self.setStyleSheet(f"""
+            QListWidget {{
+                color: transparent;
+                background-color: transparent;
+                border: none;
+            }}
+
+            QListWidget::item {{
+                color: "#e1d0ba";
+                background-color: none;
+                border-width: 8px 8px 8px 8px;
+                border-image: url(./resources/backgrounds/listitem_primary_64.png) 8 8 8 8 round;
+            }}
+
+            QListWidget::item::alternate {{
+                color: "#e1d0ba";
+                background-color: {backgroundColor};
+                border-width: 8px 8px 8px 8px;
+                border-image: url(./resources/backgrounds/listitem_secondary_64.png) 8 8 8 8 round;
+            }}
+
+            QListWidget::item:hover {{
+                color: "#e1d0ba";
+                background-color: none;
+                border-width: 8px 8px 8px 8px;
+                border-image: url(./resources/backgrounds/listitem_primary_64_highlight.png) 8 8 8 8 round;
+            }}
+
+            QListWidget::item::alternate:hover {{
+                color: "#e1d0ba";
+                background-color: "{backgroundColor}";
+                border-width: 8px 8px 8px 8px;
+                border-image: url(./resources/backgrounds/listitem_secondary_64_highlight.png) 8 8 8 8 round;
+            }}
+        """)
 
 class PaperLargeWidget(QWidget):
     def __init__(self):
@@ -93,25 +146,6 @@ class PaperLargeWidget(QWidget):
                 color: "#2f2322";
                 border-width: 32px 32px 32px 32px;
                 border-image: url(./resources/backgrounds/dock_background_96.png) 32 32 32 32 round;
-            }
-
-            QListWidget {
-                color: transparent;
-                background-color: transparent;
-                border: none;
-            }
-
-            QListWidget::item {
-                color: "#e1d0ba";
-                border-width: 8px 8px 8px 8px;
-                border-image: url(./resources/backgrounds/listitem_primary_64.png) 8 8 8 8 round;
-            }
-
-            QListWidget::item::alternate {
-                color: "#e1d0ba";
-                background-color: "#e1d0ba";
-                border-width: 8px 8px 8px 8px;
-                border-image: url(./resources/backgrounds/listitem_secondary_64.png) 8 8 8 8 round;
             }
         """)
 
