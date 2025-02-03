@@ -804,13 +804,17 @@ class PackItem(QListWidgetItem):
             self.packList.updateModViewerPackList()
 
     def rename(self):
+        # No change was made, don't bother the user.
+        if self.title.displayText() == self.name:
+            return
+
         for x in range(self.packList.count()):
             pack = self.packList.item(x)
             if pack.name == self.title.displayText():
                 # Name already exists, reject and tell user.
                 self.title.setText(self.name)
                 QMessageBox.warning(
-                    self.title, "Error", "This title already exists in another pack!"
+                    self.modCount, "Error", "This title already exists in another pack!"
                 )
 
         self.name = self.title.displayText()
