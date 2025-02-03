@@ -999,8 +999,8 @@ class PackItem(QListWidgetItem):
         if len(self.mods) == 0:
             return
 
-        for x in range(mainWindow.packList.modList.count()):
-            mod = mainWindow.packList.modList.item(x)
+        for x in range(mainWindow.modList.count()):
+            mod = mainWindow.modList.item(x)
             if mod.loaded:
                 # If the mod is enabled and it shouldn't be.
                 if mod.enabled and mod.directory not in self.mods:
