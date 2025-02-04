@@ -169,15 +169,24 @@ class PaperWidgetAction(QWidgetAction):
         super().__init__(parent)
 
         self.label = QLabel(text)
+        self.label.setMouseTracking(True)
 
         f = self.label.font()
         f.setBold(True)
         self.label.setFont(f)
 
         self.label.setStyleSheet("""
-            color: "#2f2322";
-            border-width: 8px 16px 12px 16px;
-            border-image: url(./resources/backgrounds/search_background_64.png) 8 16 12 16 round;
+            QLabel {
+                color: "#2f2322";
+                border-width: 8px 16px 12px 16px;
+                border-image: url(./resources/backgrounds/actionbutton_background_64.png) 8 16 12 16 round;
+            }
+
+            QLabel:hover {
+                color: "#2f2322";
+                border-width: 8px 16px 12px 16px;
+                border-image: url(./resources/backgrounds/actionbutton_background_64_highlight.png) 8 16 12 16 round;
+            }
         """)
 
         self.setText(text)

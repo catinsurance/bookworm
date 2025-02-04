@@ -1431,7 +1431,7 @@ class MainWindow(QMainWindow):
         self.setMaximumSize(1280, 800)
 
         self.mainBackground = QPixmap("./resources/backgrounds/library_background.png")
-        self.mainBackground = self.mainBackground.scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatio)
+        self.mainBackground = self.mainBackground.scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding)
         self.backgroundPalette = QPalette()
         self.backgroundPalette.setBrush(QPalette.ColorRole.Window, self.mainBackground)
         self.setPalette(self.backgroundPalette)
