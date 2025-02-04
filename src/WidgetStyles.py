@@ -164,6 +164,25 @@ class PaperLargeWidget(QWidget):
         titlePoint = QPoint((event.rect().topRight().x() // 2) - (bounding.width() // 2), 38)
         painter.drawText(titlePoint, self.dockTitle)
 
+class PaperWidgetAction(QWidgetAction):
+    def __init__(self, parent, text):
+        super().__init__(parent)
+
+        self.label = QLabel(text)
+
+        f = self.label.font()
+        f.setBold(True)
+        self.label.setFont(f)
+
+        self.label.setStyleSheet("""
+            color: "#2f2322";
+            border-width: 8px 16px 12px 16px;
+            border-image: url(./resources/backgrounds/search_background_64.png) 8 16 12 16 round;
+        """)
+
+        self.setText(text)
+
+        self.setDefaultWidget(self.label)
 
 class PaperToolButton(QToolButton):
     def __init__(self, paperType):

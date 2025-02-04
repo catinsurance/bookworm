@@ -612,10 +612,12 @@ class ModListToolbar(QWidget):
         self.categoryBox.setContentsMargins(0, 0, 0, 0)
 
         self.nameCategory = PaperPushButton(PaperButtonType.Primary)
-        self.categoryBox.addWidget(self.nameCategory, stretch=3)
+        self.nameCategory.setFixedSize(295, 35)
+        self.categoryBox.addWidget(self.nameCategory)
         self.nameCategory.clicked.connect(self.sortingModeName)
 
         self.enabledCategory = PaperPushButton(PaperButtonType.Primary)
+        self.enabledCategory.setFixedSize(85, 35)
         self.categoryBox.addWidget(self.enabledCategory)
         self.enabledCategory.clicked.connect(self.sortingModeState)
 
@@ -630,16 +632,16 @@ class ModListToolbar(QWidget):
 
         if self.sortingMode == ModSortingMode.NameAscending:
             self.nameCategory.setText("Name ▾")
-            self.enabledCategory.setText("State")
+            self.enabledCategory.setText("Active")
         elif self.sortingMode == ModSortingMode.NameDescending:
             self.nameCategory.setText("Name ▴")
-            self.enabledCategory.setText("State")
+            self.enabledCategory.setText("Active")
         elif self.sortingMode == ModSortingMode.Enabled:
             self.nameCategory.setText("Name")
-            self.enabledCategory.setText("State ▾")
+            self.enabledCategory.setText("Active ▾")
         elif self.sortingMode == ModSortingMode.Disabled:
             self.nameCategory.setText("Name")
-            self.enabledCategory.setText("State ▴")
+            self.enabledCategory.setText("Active ▴")
 
         for x in range(mainWindow.modList.count()):
             item = mainWindow.modList.item(x)
@@ -666,7 +668,8 @@ class ModListToolbar(QWidget):
             name = pack.name
             if self.packFilter == pack.name:
                 name = "[✓] " + name
-            self.filterMenu.addAction(name)
+
+            self.filterMenu.addAction(PaperWidgetAction(self.filterMenu, name))
 
     def choiceChanged(self, action):
         actionText = action.text()
@@ -1264,8 +1267,16 @@ class PackListToolbar(QWidget):
 class PackListDropdownMenu(QMenu):
     def __init__(self, toolbar):
         super().__init__()
-
         self.toolbar = toolbar
+
+        self.setStyleSheet("""
+            color: "#2f2322";
+            border-width: 8px 16px 12px 16px;
+            border-image: url(./resources/backgrounds/textbrowser_background_64.png) 8 16 12 16 round;
+            background: rgba(255, 255, 255, 0%);
+        """)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.FramelessWindowHint | Qt.WindowType.NoDropShadowWindowHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
     def showEvent(self, event):
         self.toolbar.refreshPackChoices()
@@ -1384,7 +1395,7 @@ class ModViewer(QWidget):
         if hasattr(current, "workshopId"):
             workshopId = current.workshopId
 
-        truncateConstant = 36
+        truncateConstant = 28
         directory = current.directory
         if len(directory) > truncateConstant:
             directory = directory[0 : truncateConstant - 3] + "..."
@@ -1411,7 +1422,6 @@ class ModViewer(QWidget):
         painter = QPainter(self)
         self.style().drawPrimitive(QStyle.PrimitiveElement.PE_Widget, opt, painter, self)
 
-
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -1426,41 +1436,55 @@ class MainWindow(QMainWindow):
         self.backgroundPalette.setBrush(QPalette.ColorRole.Window, self.mainBackground)
         self.setPalette(self.backgroundPalette)
 
-        # Add toolbar
-        self.toolbar = self.menuBar()
-        self.fileMenu = self.toolbar.addMenu("&File")
-
-        self.locateMods = QAction("Locate mods folder", self)
-        self.fileMenu.addAction(self.locateMods)
-        self.locateMods.triggered.connect(self.locateModsFolder)
-
-        self.disableAutoDownload = QAction("Disable automatic thumbnail download", self)
-        self.fileMenu.addAction(self.disableAutoDownload)
-        self.disableAutoDownload.setCheckable(True)
-        self.disableAutoDownload.setChecked(
-            settings.value("AutomaticThumbnailDownload") == "0"
-        )
-        self.disableAutoDownload.toggled.connect(self.toggleAutoThumbnailDownload)
-
-        self.exitProgram = QAction("Exit", self)
-        self.fileMenu.addAction(self.exitProgram)
-        self.exitProgram.triggered.connect(self.close)
-
     def setupWidgets(self):
-        self.setupPackList()
-        self.setupModList()
-        self.setupModViewer()
-
-    def setupPackList(self):
-        # Add pack list.
-        self.packListDock = QDockWidget("Packs")
-        self.packListDock.setFeatures(
+        # Right side dock houses packs and settings.
+        self.rightSideDock = QDockWidget()
+        self.rightSideDock.setFeatures(
             QDockWidget.DockWidgetFeature.NoDockWidgetFeatures
         )
 
-        # Set titlebar to empty widget to remove it.
-        self.packListDock.setTitleBarWidget(QWidget())
+        self.rightSideDockWidget = QWidget()
+        self.rightSideDockLayout = QVBoxLayout()
 
+        # Set titlebar to empty widget to remove it.
+        self.rightSideDock.setTitleBarWidget(QWidget())
+
+        self.setupPackList()
+        self.setupSettingsMenu()
+        self.setupModList()
+        self.setupModViewer()
+
+        self.rightSideDockWidget.setLayout(self.rightSideDockLayout)
+        self.rightSideDock.setWidget(self.rightSideDockWidget)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.rightSideDock)
+
+    def setupSettingsMenu(self):
+        self.settingsMenuMasterWidget = PaperLargeWidget()
+        self.settingsMenuMasterWidget.setContentsMargins(4, 38, 4, 4)
+        self.settingsMenuMasterWidget.dockTitle = "Settings"
+        self.settingsMenuMasterWidgetLayout = QHBoxLayout()
+
+        self.locateMods = PaperPushButton(PaperButtonType.Primary, "Locate mods\nfolder")
+        self.locateMods.clicked.connect(self.locateModsFolder)
+        self.locateMods.setMaximumSize(120, 60)
+        self.settingsMenuMasterWidgetLayout.addWidget(self.locateMods)
+
+        self.disableAutoDownload = PaperPushButton(PaperButtonType.Primary)
+        self.disableAutoDownload.clicked.connect(self.toggleAutoThumbnailDownload)
+        self.disableAutoDownload.setMaximumSize(200, 60)
+        self.settingsMenuMasterWidgetLayout.addWidget(self.disableAutoDownload)
+
+        if settings.value("AutomaticThumbnailDownload") == "1":
+            self.disableAutoDownload.setText("Disable automatic\nthumbnail download")
+        else:
+            self.disableAutoDownload.setText("Enable automatic\nthumbnail download")
+
+
+        self.settingsMenuMasterWidget.setLayout(self.settingsMenuMasterWidgetLayout)
+
+        self.rightSideDockLayout.addWidget(self.settingsMenuMasterWidget)
+
+    def setupPackList(self):
         self.packListMasterWidget = PaperLargeWidget()
         self.packListMasterWidget.dockTitle = "Packs"
         self.packListMasterWidgetLayout = QHBoxLayout()
@@ -1484,8 +1508,7 @@ class MainWindow(QMainWindow):
         self.packListMasterWidgetLayout.addWidget(self.packListDockWidget)
         self.packListMasterWidget.setLayout(self.packListMasterWidgetLayout)
 
-        self.packListDock.setWidget(self.packListMasterWidget)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.packListDock)
+        self.rightSideDockLayout.addWidget(self.packListMasterWidget, stretch=2)
 
     def setupModList(self):
         self.modListMasterWidget = PaperLargeWidget()
@@ -1540,9 +1563,11 @@ class MainWindow(QMainWindow):
             settings.setValue("AutomaticThumbnailDownload", "0")
             iconQueue.clear()
             self.modList.modIconQueueHandler.paused = True
+            self.disableAutoDownload.setText("Enable automatic\nthumbnail download")
         else:
             settings.setValue("AutomaticThumbnailDownload", "1")
             self.modList.modIconQueueHandler.paused = False
+            self.disableAutoDownload.setText("Disable automatic\nthumbnail download")
 
             # Reload mod list.
             mainWindow.modList.loadMods()
@@ -1577,8 +1602,8 @@ if __name__ == "__main__":
     QFontDatabase.addApplicationFont("./resources/fonts/foursoulv3.otf")
 
     mainWindow = MainWindow()
-
     mainWindow.setupWidgets()
+
     mainWindow.show()
 
     app.exec()
