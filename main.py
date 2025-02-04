@@ -1453,6 +1453,8 @@ class MainWindow(QMainWindow):
         self.backgroundPalette.setBrush(QPalette.ColorRole.Window, self.mainBackground)
         self.setPalette(self.backgroundPalette)
 
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
     def setupWidgets(self):
         # Right side dock houses packs and settings.
         self.rightSideDock = QDockWidget()
@@ -1461,7 +1463,10 @@ class MainWindow(QMainWindow):
         )
 
         self.rightSideDockWidget = QWidget()
+        self.rightSideDockWidget.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding))
+
         self.rightSideDockLayout = QVBoxLayout()
+        self.rightSideDockLayout.setContentsMargins(0, 0, 0, 0)
 
         # Set titlebar to empty widget to remove it.
         self.rightSideDock.setTitleBarWidget(QWidget())
@@ -1537,6 +1542,8 @@ class MainWindow(QMainWindow):
     def setupModList(self):
         self.modListMasterWidget = PaperLargeWidget()
         self.modListMasterWidget.dockTitle = "Mods"
+        self.modListMasterWidget.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding))
+
         self.modListMasterWidgetLayout = QHBoxLayout()
 
         # Add mod list.
@@ -1629,9 +1636,8 @@ if __name__ == "__main__":
 
     mainWindow.show()
 
-    app.exec()
-
     print(">> Done loading Bookworm! <<")
+    app.exec()
 
     mainWindow.modList.iconThread.wait()
     sys.exit(0)
