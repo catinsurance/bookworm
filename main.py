@@ -238,16 +238,25 @@ class ModItem(QListWidgetItem):
         self.thumbnail = QPushButton()
         self.thumbnail.setFixedSize(64, 64)
         self.thumbnail.setContentsMargins(2, 2, 2, 2)
-        self.thumbnail.setEnabled(False)
+        self.thumbnail.setEnabled(True)
         self.thumbnail.setFixedSize(64, 64)
 
         if not self.loaded:
             # Failed to load mod, tell the user and don't put any mod data.
             self.thumbnail.setIcon(QPixmap("resources/load_fail.png"))
+            self.thumbnail.blockSignals(True) # Just disabling it normally makes it grey for some reason.
+            self.thumbnail.setIconSize(QSize(64, 64))
+
+            self.thumbnail.setStyleSheet("""
+                background-color: rgba(255, 255, 255, 0);
+            """)
+            self.thumbnailLayout.addWidget(self.thumbnail, 0, 0, Qt.AlignmentFlag.AlignCenter)
+
             folderName = os.path.basename(folderPath)
             self.label = QLabel(
                 f"<font size=5>Failed to read mod data!</font><br><font size=3><i>{folderName}</i></font>"
             )
+
             self.setFlags(self.flags() & ~Qt.ItemFlag.ItemIsSelectable)
         else:
             modIcon = QPixmap()
@@ -663,16 +672,24 @@ class ModListToolbar(QWidget):
 
     def refreshPackChoices(self):
         self.filterMenu.clear()
-        for x in range(mainWindow.packList.count()):
-            pack = mainWindow.packList.item(x)
-            name = pack.name
-            if self.packFilter == pack.name:
-                name = "[✓] " + name
 
-            self.filterMenu.addAction(PaperWidgetAction(self.filterMenu, name))
+        count = mainWindow.packList.count()
+        if count > 0:
+            for x in range(count):
+                pack = mainWindow.packList.item(x)
+                name = pack.name
+                if self.packFilter == pack.name:
+                    name = "[✓] " + name
+
+                self.filterMenu.addAction(PaperWidgetAction(self.filterMenu, name))
+        else:
+            self.filterMenu.addAction(PaperWidgetAction(self.filterMenu, "No packs to sort by"))
 
     def choiceChanged(self, action):
         actionText = action.text()
+        if actionText == "No packs to sort by":
+            return
+
         if actionText.startswith("[✓] "):
             actionText = actionText.removeprefix("[✓] ")
 
@@ -1449,9 +1466,16 @@ class MainWindow(QMainWindow):
         # Set titlebar to empty widget to remove it.
         self.rightSideDock.setTitleBarWidget(QWidget())
 
+        print("Loading pack list")
         self.setupPackList()
+
+        print("Loading settings menu")
         self.setupSettingsMenu()
+
+        print("Loading mod list")
         self.setupModList()
+
+        print("Loading mod viewer")
         self.setupModViewer()
 
         self.rightSideDockWidget.setLayout(self.rightSideDockLayout)
@@ -1591,7 +1615,6 @@ class MainWindow(QMainWindow):
 
         event.accept()
 
-
 if __name__ == "__main__":
     app = QApplication([])
     app.setWindowIcon(QIcon("resources/app_icon.ico"))
@@ -1607,5 +1630,8 @@ if __name__ == "__main__":
     mainWindow.show()
 
     app.exec()
+
+    print(">> Done loading Bookworm! <<")
+
     mainWindow.modList.iconThread.wait()
     sys.exit(0)
