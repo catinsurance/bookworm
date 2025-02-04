@@ -26,7 +26,7 @@ class PaperLineEdit(QLineEdit):
         self.setStyleSheet("""
             color: "#2f2322";
             border-width: 8px 16px 12px 16px;
-            border-image: url(./resources/backgrounds/search_background_64.png) 8 16 12 16 round;
+            border-image: url(./resources/backgrounds/search_background_64.png) 8 16 12 16 fill;
         """)
 
 class PaperTextBrowser(QTextBrowser):
@@ -37,7 +37,7 @@ class PaperTextBrowser(QTextBrowser):
             QTextBrowser {
                 color: "#2f2322";
                 border-width: 8px 16px 12px 16px;
-                border-image: url(./resources/backgrounds/textbrowser_background_64.png) 8 16 12 16 round;
+                border-image: url(./resources/backgrounds/textbrowser_background_64.png) 8 16 12 16 fill;
             }
         """)
 
@@ -71,7 +71,7 @@ class PaperScrollbar(QScrollBar):
             QScrollBar::handle:vertical {{
                 background: "{self.scrollbarType[1]}";
                 border-width: 8px 8px 8px 8px;
-                border-image: url({self.scrollbarType[0]}.png) 8 8 8 8 round;
+                border-image: url({self.scrollbarType[0]}.png) 8 8 8 8 fill;
             }}
         """)
         self.valueChanged.connect(self.updateMask)
@@ -105,28 +105,28 @@ class PaperListWidget(QListWidget):
                 color: "#e1d0ba";
                 background-color: none;
                 border-width: 8px 8px 8px 8px;
-                border-image: url(./resources/backgrounds/listitem_primary_64.png) 8 8 8 8 round;
+                border-image: url(./resources/backgrounds/listitem_primary_64.png) 8 8 8 8 fill;
             }}
 
             QListWidget::item::alternate {{
                 color: "#e1d0ba";
                 background-color: {backgroundColor};
                 border-width: 8px 8px 8px 8px;
-                border-image: url(./resources/backgrounds/listitem_secondary_64.png) 8 8 8 8 round;
+                border-image: url(./resources/backgrounds/listitem_secondary_64.png) 8 8 8 8 fill;
             }}
 
             QListWidget::item:hover {{
                 color: "#e1d0ba";
                 background-color: none;
                 border-width: 8px 8px 8px 8px;
-                border-image: url(./resources/backgrounds/listitem_primary_64_highlight.png) 8 8 8 8 round;
+                border-image: url(./resources/backgrounds/listitem_primary_64_highlight.png) 8 8 8 8 fill;
             }}
 
             QListWidget::item::alternate:hover {{
                 color: "#e1d0ba";
                 background-color: "{backgroundColor}";
                 border-width: 8px 8px 8px 8px;
-                border-image: url(./resources/backgrounds/listitem_secondary_64_highlight.png) 8 8 8 8 round;
+                border-image: url(./resources/backgrounds/listitem_secondary_64_highlight.png) 8 8 8 8 fill;
             }}
         """)
 
@@ -146,7 +146,7 @@ class PaperLargeWidget(QWidget):
             QWidget#paperDockWidget {
                 color: "#2f2322";
                 border-width: 32px 32px 32px 32px;
-                border-image: url(./resources/backgrounds/dock_background_96.png) 32 32 32 32 round;
+                border-image: url(./resources/backgrounds/dock_background_96.png) 32 32 32 32 fill;
             }
         """)
 
@@ -179,13 +179,13 @@ class PaperWidgetAction(QWidgetAction):
             QLabel {
                 color: "#2f2322";
                 border-width: 8px 16px 12px 16px;
-                border-image: url(./resources/backgrounds/actionbutton_background_64.png) 8 16 12 16 round;
+                border-image: url(./resources/backgrounds/actionbutton_background_64.png) 8 16 12 16 fill;
             }
 
             QLabel:hover {
                 color: "#2f2322";
                 border-width: 8px 16px 12px 16px;
-                border-image: url(./resources/backgrounds/actionbutton_background_64_highlight.png) 8 16 12 16 round;
+                border-image: url(./resources/backgrounds/actionbutton_background_64_highlight.png) 8 16 12 16 fill;
             }
         """)
 
@@ -200,20 +200,20 @@ class PaperToolButton(QToolButton):
         self.paperType = paperType
         self.setStyleSheet(f"""
             border-width: 4px 8px 4px 8px;
-            border-image: url({self.paperType + ".png"}) 4 8 4 8 round;
+            border-image: url({self.paperType + ".png"}) 4 8 4 8 fill;
         """)
 
     def enterEvent(self, event):
         self.setStyleSheet(f"""
             border-width: 4px 8px 4px 8px;
-            border-image: url({self.paperType + "_highlight.png"}) 4 8 4 8 round;
+            border-image: url({self.paperType + "_highlight.png"}) 4 8 4 8 fill;
         """)
         return super().enterEvent(event)
 
     def leaveEvent(self, event):
         self.setStyleSheet(f"""
             border-width: 4px 8px 4px 8px;
-            border-image: url({self.paperType + ".png"}) 4 8 4 8 round;
+            border-image: url({self.paperType + ".png"}) 4 8 4 8 fill;
         """)
         return super().leaveEvent(event)
 
@@ -229,19 +229,19 @@ class PaperPushButton(QPushButton):
 
         self.setStyleSheet(f"""
             border-width: 8px 12px 12px 12px;
-            border-image: url({paperType + ".png"}) 8 12 12 12 round;
+            border-image: url({paperType + ".png"}) 8 12 12 12 fill;
         """)
 
     def enterEvent(self, event):
         self.setStyleSheet(f"""
             border-width: 8px 12px 12px 12px;
-            border-image: url({self.paperType + "_highlight.png"}) 8 12 12 12 round;
+            border-image: url({self.paperType + "_highlight.png"}) 8 12 12 12 fill;
         """)
         return super().enterEvent(event)
 
     def leaveEvent(self, event):
         self.setStyleSheet(f"""
             border-width: 8px 12px 12px 12px;
-            border-image: url({self.paperType + ".png"}) 8 12 12 12 round;
+            border-image: url({self.paperType + ".png"}) 8 12 12 12 fill;
         """)
         return super().leaveEvent(event)
