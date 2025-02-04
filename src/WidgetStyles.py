@@ -17,6 +17,7 @@ class PaperButtonType():
 class PaperScrollbarType():
     DockedList = ("./resources/backgrounds/scrollbar_packlist_32", "#e1d0ba")
     ModDescription = ("./resources/backgrounds/scrollbar_description_32", "#f9f8f7")
+    MiniPackList = ("./resources/backgrounds/scrollbar_mini_packlist_32", "#c5dff7")
 
 class PaperLineEdit(QLineEdit):
     def __init__(self):

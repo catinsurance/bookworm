@@ -32,7 +32,6 @@ class ModSortingMode(Enum):
 
 selectedMod = None
 iconQueueOpen = True
-iconProcessing = False
 iconQueue = []
 
 
@@ -160,59 +159,63 @@ def parseWorkshopPage(html):
 
     return None
 
+class IconQueueHandler(QObject):
+    destroy = Signal()
+    iconFetched = Signal(str, str, bool)
 
-def handleIconQueue():
-    while iconQueueOpen:
-        global iconProcessing
-        if len(iconQueue) > 0:
-            iconProcessing = True
-            queued = iconQueue.pop(0)
-            filePath = f"cache/thumb-{queued.workshopId}.png"
+    def start(self):
+        self.paused = False
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.process)
+        self.timer.start(1000)
 
-            if not os.path.exists(filePath):
-                fetched = requests.get(WORKSHOP_ITEM_URL + queued.workshopId)
-                html = fetched.content
-                parsed = parseWorkshopPage(html)
-                if parsed is not None:
-                    if not os.path.exists("cache/") or not os.path.isdir("cache/"):
-                        os.makedirs("cache/")
+        self.destroy.connect(self.stop)
 
-                    imgData = requests.get(parsed)
+    def stop(self):
+        self.timer.stop()
+        QThread.currentThread().exit()
 
-                    if iconProcessing:
-                        with open(filePath, "wb") as f:
-                            f.write(imgData.content)
+    def toggle(self):
+        self.paused = not self.paused
 
-                        # Resize to save on space.
-                        # It only displays as 64x64 anyway.
-                        image = Image.open(filePath)
-                        resized = image.resize((64, 64))
-                        resized.save(filePath)
+    def process(self):
+        if QThread.currentThread().isInterruptionRequested():
+            self.stop()
+            return
 
-                        modIcon = QPixmap(filePath)
-                        queued.thumbnail.setIcon(modIcon)
-                elif iconProcessing:
-                    print(f"Could not grab icon for workshop id {queued.workshopId}")
+        if len(iconQueue) == 0 or self.paused:
+            return
 
-                    modIcon = QPixmap("resources/no_icon.png")
-                    queued.thumbnailLabel.setText("Couldn't download, click to retry")
-                    queued.thumbnail.setIcon(modIcon)
-                    queued.thumbnail.setEnabled(True)
-                    queued.thumbnailLabel.setVisible(True)
-            elif iconProcessing:
-                modIcon = QPixmap(filePath)
-                queued.thumbnail.setIcon(modIcon)
+        workshopId = iconQueue.pop(0)
+        filePath = f"cache/thumb-{workshopId}.png"
 
-            if iconProcessing:
-                queued.thumbnail.setEnabled(True)
-                queued.thumbnailLabel.setVisible(True)
+        if not os.path.exists(filePath):
+            fetched = requests.get(WORKSHOP_ITEM_URL + workshopId)
+            html = fetched.content
+            parsed = parseWorkshopPage(html)
+            if parsed is not None:
+                if not os.path.exists("cache/") or not os.path.isdir("cache/"):
+                    os.makedirs("cache/")
 
-        iconProcessing = False
+                imgData = requests.get(parsed)
 
-        time.sleep(WORKSHOP_QUERY_WAIT)
+                with open(filePath, "wb") as f:
+                    f.write(imgData.content)
 
-    iconProcessing = False
+                # Resize to save on space.
+                # It only displays as 64x64 anyway.
+                image = Image.open(filePath)
+                resized = image.resize((64, 64))
+                resized.save(filePath)
 
+                # Set mod icon.
+                self.iconFetched.emit(workshopId, filePath, False)
+            else:
+                print(f"Could not grab icon for workshop id {workshopId}")
+                self.iconFetched.emit(workshopId, "resources/no)icon.png", True)
+        else:
+            # Set mod icon.
+            self.iconFetched.emit(workshopId, filePath, False)
 
 class ModItem(QListWidgetItem):
     def __init__(self, folderPath):
@@ -230,11 +233,17 @@ class ModItem(QListWidgetItem):
 
         self.thumbnailBorder = QLabel()
         self.thumbnailBorder.setPixmap(QPixmap("./resources/mod_icon_frame.png"))
+        self.thumbnailBorder.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+
+        self.thumbnail = QPushButton()
+        self.thumbnail.setFixedSize(64, 64)
+        self.thumbnail.setContentsMargins(2, 2, 2, 2)
+        self.thumbnail.setEnabled(False)
+        self.thumbnail.setFixedSize(64, 64)
 
         if not self.loaded:
             # Failed to load mod, tell the user and don't put any mod data.
-            self.thumbnail = QLabel()
-            self.thumbnail.setPixmap(QPixmap("resources/load_fail.png"))
+            self.thumbnail.setIcon(QPixmap("resources/load_fail.png"))
             folderName = os.path.basename(folderPath)
             self.label = QLabel(
                 f"<font size=5>Failed to read mod data!</font><br><font size=3><i>{folderName}</i></font>"
@@ -250,28 +259,25 @@ class ModItem(QListWidgetItem):
 
             if hasattr(self, "workshopId"):
                 workshopThumb = f"cache/thumb-{self.workshopId}.png"
+
                 if os.path.exists(workshopThumb):
                     modIcon.load(workshopThumb)
                     self.workshopThumbLoaded = True
                 elif settings.value("AutomaticThumbnailDownload") == "1":
                     isAutomaticallyQuerying = True
-                    iconQueue.append(self)
+                    iconQueue.append(self.workshopId)
             else:
                 modIcon.load("resources/no_icon.png")
 
-            self.thumbnail = QPushButton()
-            self.thumbnail.setFixedSize(64, 64)
-            self.thumbnail.setContentsMargins(2, 2, 2, 2)
-            self.thumbnail.setEnabled(not isAutomaticallyQuerying)
-            self.thumbnail.setFixedSize(64, 64)
             self.thumbnail.setIcon(modIcon)
             self.thumbnail.setIconSize(QSize(64, 64))
-
             self.thumbnailLayout.addWidget(self.thumbnail, 0, 0, Qt.AlignmentFlag.AlignCenter)
 
             self.thumbnail.setStyleSheet("""
                 background-color: rgba(255, 255, 255, 0);
             """)
+
+            self.thumbnail.setEnabled(not isAutomaticallyQuerying)
 
             if hasattr(self, "workshopId"):
                 self.thumbnail.setMouseTracking(True)
@@ -301,8 +307,8 @@ class ModItem(QListWidgetItem):
                     }
                     """
                 )
+
                 self.thumbnailLabel.setFixedSize(64, 64)
-                self.thumbnailLayout.addWidget(self.thumbnailLabel, 0, 0, Qt.AlignmentFlag.AlignCenter)
 
             # Truncate text if too long.
             name = self.name
@@ -385,16 +391,7 @@ class ModItem(QListWidgetItem):
             self.thumbnailLabel.setText("Click to download thumbnail")
             self.workshopThumbLoaded = False
         else:
-            modIcon = QPixmap()
-            modIcon.size().setWidth(64)
-            modIcon.size().setHeight(64)
-            self.thumbnail.setEnabled(False)
-            iconQueue.append(self)
-            self.thumbnail.setIcon(modIcon)
-
-            self.thumbnailLabel.setVisible(False)
-            self.thumbnailLabel.setText("Click to delete thumbnail")
-            self.workshopThumbLoaded = True
+            iconQueue.append(self.workshopId)
 
     # Required after changing object name.
     def refreshCheckboxStylesheet(self):
@@ -532,6 +529,12 @@ class ModList(PaperListWidget):
 
         self.loadMods()
 
+        self.iconThread = QThread()
+
+        self.modIconQueueHandler = IconQueueHandler()
+        self.modIconQueueHandler.moveToThread(self.iconThread)
+        self.modIconQueueHandler.iconFetched.connect(self.modIconFetched)
+
     def loadMods(self):
         self.clear()
         modsPath = getModsFolderPath()
@@ -548,6 +551,20 @@ class ModList(PaperListWidget):
                 self.setItemWidget(modItem, modItem.widget)
 
         self.sortItems()
+
+    def modIconFetched(self, workshopId, filePath, failedToLoad):
+        for x in range(self.count()):
+            item = self.item(x)
+            if hasattr(item, "workshopId") and item.workshopId == workshopId:
+                modIcon = QPixmap(filePath)
+                item.thumbnail.setIcon(modIcon)
+                item.thumbnail.setEnabled(True)
+                item.thumbnailLabel.setVisible(True)
+
+                if failedToLoad:
+                    item.thumbnailLabel.setText("Couldn't download, click to retry")
+
+                break
 
 
 class ModListToolbar(QWidget):
@@ -774,7 +791,6 @@ class PackItem(QListWidgetItem):
             item = mainWindow.packList.item(x)
             if item.uuid == self.uuid:
                 print(f"Pack of path {self.filePath} is already loaded!")
-                # Use `name.text` because `self.name` could be slightly altered.
                 QMessageBox.warning(
                     self, "Error", f'Pack "{self.name}" is already loaded!'
                 )
@@ -1296,6 +1312,9 @@ class ModViewer(QWidget):
         self.addPackList.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.addPackLayout.addWidget(self.addPackList)
 
+        self.scrollbar = PaperScrollbar(PaperScrollbarType.MiniPackList, self)
+        self.addPackList.setVerticalScrollBar(self.scrollbar)
+
         self.layout.addLayout(self.addPackLayout)
         self.setLayout(self.layout)
 
@@ -1499,6 +1518,11 @@ class MainWindow(QMainWindow):
         self.modListDock.setWidget(self.modListMasterWidget)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.modListDock)
 
+        # Setup icon queue thread.
+        self.modList.iconThread.started.connect(self.modList.modIconQueueHandler.start)
+        self.modList.iconThread.destroyed.connect(self.modList.modIconQueueHandler.stop)
+        self.modList.iconThread.start(QThread.Priority.IdlePriority)
+
     def setupModViewer(self):
         # Add mod viewer.
         self.modViewer = ModViewer()
@@ -1511,35 +1535,29 @@ class MainWindow(QMainWindow):
         iconQueue.clear()
         getModsFolderPath(self)
 
-        global iconProcessing
-        iconProcessing = False
-
     def toggleAutoThumbnailDownload(self):
-        global iconQueueOpen
         if settings.value("AutomaticThumbnailDownload") == "1":
             settings.setValue("AutomaticThumbnailDownload", "0")
-            iconQueueOpen = False
             iconQueue.clear()
+            self.modList.modIconQueueHandler.paused = True
         else:
             settings.setValue("AutomaticThumbnailDownload", "1")
-            iconQueueOpen = True
-
-            # Restart icon queue thread.
-            thread = threading.Thread(target=handleIconQueue)
-            thread.start()
+            self.modList.modIconQueueHandler.paused = False
 
             # Reload mod list.
             mainWindow.modList.loadMods()
 
     def modFolderLocated(self):
-        global iconProcessing
-        iconProcessing = True
         mainWindow.modList.loadMods()
+
+    def closeIconTimer(self):
+        self.modList.modIconQueueHandler.destroy.emit()
 
     def closeEvent(self, event):
         # Disable workshop icon queue.
-        global iconQueueOpen
-        iconQueueOpen = False
+        iconQueue.clear()
+
+        self.modList.iconThread.requestInterruption()
 
         # Save packs.
         for x in range(mainWindow.packList.count()):
@@ -1563,7 +1581,6 @@ if __name__ == "__main__":
     mainWindow.setupWidgets()
     mainWindow.show()
 
-    thread = threading.Thread(target=handleIconQueue)
-    thread.start()
-
-    sys.exit(app.exec())
+    app.exec()
+    mainWindow.modList.iconThread.wait()
+    sys.exit(0)
