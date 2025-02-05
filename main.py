@@ -3,7 +3,6 @@ import os
 import re
 import uuid
 import requests
-import threading, time
 
 from enum import Enum
 from datetime import datetime as date
@@ -33,7 +32,7 @@ class ModSortingMode(Enum):
 selectedMod = None
 iconQueueOpen = True
 iconQueue = []
-
+modQueue = []
 
 class DirectoryLocationDialog(QFileDialog):
     def __init__(self, mainWindow=None):
@@ -159,7 +158,7 @@ def parseWorkshopPage(html):
 
     return None
 
-class IconQueueHandler(QObject):
+class IconQueueWorker(QObject):
     destroy = Signal()
     iconFetched = Signal(str, str, bool)
 
@@ -217,12 +216,50 @@ class IconQueueHandler(QObject):
             # Set mod icon.
             self.iconFetched.emit(workshopId, filePath, False)
 
+class ModLoader(QObject):
+    destroy = Signal()
+    modLoaded = Signal(dict)
+
+    def start(self):
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.load)
+        self.timer.start(10)
+
+        self.destroy.connect(self.stop)
+
+    def stop(self):
+        self.timer.stop()
+        QThread.currentThread().exit()
+
+    def load(self):
+        if QThread.currentThread().isInterruptionRequested():
+            self.stop()
+            return
+
+        if len(modQueue) == 0:
+            return
+
+        folderPath = modQueue.pop(0)
+        loadedData = ModItem.loadFromFile(folderPath)
+        self.modLoaded.emit(loadedData)
+
+
+
+
 class ModItem(QListWidgetItem):
-    def __init__(self, folderPath):
+    def __init__(self, data):
 
         super().__init__()
 
-        self.loaded = self.loadFromFile(folderPath=folderPath)
+        self.loaded = data["Loaded"]
+        self.folderPath = data["FolderPath"]
+        self.directory = data["Directory"]
+        self.workshopId = data["WorkshopId"]
+        self.name = data["Name"]
+        self.description = data["Description"]
+        self.version = data["Version"]
+        self.enabled = data["Enabled"]
+
         self.sortingMode = ModSortingMode.NameAscending
         self.widget = QWidget()
 
@@ -252,7 +289,7 @@ class ModItem(QListWidgetItem):
             """)
             self.thumbnailLayout.addWidget(self.thumbnail, 0, 0, Qt.AlignmentFlag.AlignCenter)
 
-            folderName = os.path.basename(folderPath)
+            folderName = os.path.basename(self.folderPath)
             self.label = QLabel(
                 f"<font size=5>Failed to read mod data!</font><br><font size=3><i>{folderName}</i></font>"
             )
@@ -266,7 +303,7 @@ class ModItem(QListWidgetItem):
             self.workshopThumbLoaded = False
             isAutomaticallyQuerying = False
 
-            if hasattr(self, "workshopId"):
+            if self.workshopId is not None:
                 workshopThumb = f"cache/thumb-{self.workshopId}.png"
 
                 if os.path.exists(workshopThumb):
@@ -288,7 +325,7 @@ class ModItem(QListWidgetItem):
 
             self.thumbnail.setEnabled(not isAutomaticallyQuerying)
 
-            if hasattr(self, "workshopId"):
+            if self.workshopId is not None:
                 self.thumbnail.setMouseTracking(True)
                 self.thumbnail.clicked.connect(self.thumbnailClick)
 
@@ -383,7 +420,7 @@ class ModItem(QListWidgetItem):
             return self.name < other.name
 
     def thumbnailClick(self):
-        if not hasattr(self, "workshopId") or self.workshopId == "0":
+        if self.workshopId is None or self.workshopId == "0":
             return
 
         if self.workshopThumbLoaded:
@@ -452,21 +489,32 @@ class ModItem(QListWidgetItem):
 
         self.refreshCheckboxStylesheet()
 
-    def loadFromFile(self, folderPath):
+    def loadFromFile(folderPath):
+        loadedData = {
+            "FolderPath": None,
+            "Directory": None,
+            "WorkshopId": None,
+            "Name": None,
+            "Description": None,
+            "Version": None,
+            "Enabled": None,
+            "Loaded": False
+        }
+
         metadataPath = os.path.join(folderPath, "metadata.xml")
         if not metadataPath:
             # Not a mod.
             print(f"No metadata.xml found for folder of path {folderPath}")
-            return
+            return loadedData
 
-        self.folderPath = folderPath
+        loadedData["FolderPath"] = folderPath
 
         # Open metadata.xml.
         try:
             tree = ET.parse(metadataPath)
         except:
             print(f"Could not parse mod at path {folderPath}")
-            return
+            return loadedData
 
         root = tree.getroot()
 
@@ -476,45 +524,47 @@ class ModItem(QListWidgetItem):
         if directory == None:
             # Not a valid mod.
             print(f"No directory found for mod of path {folderPath}")
-            return
+            return loadedData
 
-        self.directory = directory.text
+        loadedData["Directory"] = directory.text
 
         # Check if mod is a workshop mod (id tag).
         workshopId = root.find("id")
         if workshopId != None:
-            self.workshopId = workshopId.text
+            loadedData["WorkshopId"] = workshopId.text
 
         # Get mod name.
         name = root.find("name")
         if name == None:
             # Not a valid mod.
             print(f"No name found for mod of path {folderPath}")
-            return
+            return loadedData
 
-        self.name = name.text
+        loadedData["Name"] = name.text
 
         # Get mod version.
         version = root.find("version")
         if version == None:
             # Not a valid mod.
             print(f"No version found for mod of path {folderPath}")
-            return
+            return loadedData
 
-        self.version = version.text
+        loadedData["Version"] = version.text
 
         # Get mod description.
         description = root.find("description")
         if description == None or description.text == None or description.text == "":
-            self.description = "[No description]"
+            loadedData["Description"] = "[No description]"
         else:
-            self.description = description.text
+            loadedData["Description"] = description.text
 
         # Check if enabled by looking for disable.it
         disableItPath = os.path.join(folderPath, "disable.it")
-        self.enabled = not os.path.exists(disableItPath)
+        loadedData["Enabled"] = not os.path.exists(disableItPath)
 
-        return True
+        loadedData["Loaded"] = True
+
+        return loadedData
 
 
 class ModList(PaperListWidget):
@@ -536,13 +586,19 @@ class ModList(PaperListWidget):
 
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
-        self.loadMods()
-
         self.iconThread = QThread()
+        self.modThread = QThread()
 
-        self.modIconQueueHandler = IconQueueHandler()
-        self.modIconQueueHandler.moveToThread(self.iconThread)
-        self.modIconQueueHandler.iconFetched.connect(self.modIconFetched)
+        self.modIconWorker = IconQueueWorker()
+        self.modIconWorker.moveToThread(self.iconThread)
+        self.modIconWorker.iconFetched.connect(self.modIconFetched)
+
+        # Run this in a separate thread to make loading the app quicker.
+        self.modLoaderWorker = ModLoader()
+        self.modLoaderWorker.moveToThread(self.modThread)
+        self.modLoaderWorker.modLoaded.connect(self.modLoaded)
+
+        self.loadMods()
 
     def loadMods(self):
         self.clear()
@@ -555,16 +611,19 @@ class ModList(PaperListWidget):
         for modFolder in modsList:
             folderPath = os.path.join(modsPath, modFolder)
             if os.path.isdir(folderPath):
-                modItem = ModItem(folderPath)
-                self.addItem(modItem)
-                self.setItemWidget(modItem, modItem.widget)
+                modQueue.append(folderPath)
+
+    def modLoaded(self, loadedData):
+        modItem = ModItem(loadedData)
+        self.addItem(modItem)
+        self.setItemWidget(modItem, modItem.widget)
 
         self.sortItems()
 
     def modIconFetched(self, workshopId, filePath, failedToLoad):
         for x in range(self.count()):
             item = self.item(x)
-            if hasattr(item, "workshopId") and item.workshopId == workshopId:
+            if item.workshopId is not None and item.workshopId == workshopId:
                 modIcon = QPixmap(filePath)
                 item.thumbnail.setIcon(modIcon)
                 item.thumbnail.setEnabled(True)
@@ -713,7 +772,7 @@ class ModListToolbar(QWidget):
             item = mainWindow.modList.item(i)
 
             # Hide mods that failed to load.
-            if (self.packFilter != "" or query != "") and not hasattr(item, "name"):
+            if (self.packFilter != "" or query != "") and not item.loaded:
                 item.setHidden(True)
             elif query != "" or self.packFilter != "":
                 showsInSearchQuery = (
@@ -1398,7 +1457,7 @@ class ModViewer(QWidget):
 
     def selectionChanged(self, current):
         # Nothing is selected so just don't change.
-        if current is None or not hasattr(current, "name"):
+        if current is None or current.name is None:
             return
 
         # Set title
@@ -1409,7 +1468,7 @@ class ModViewer(QWidget):
 
         # Set workshop id.
         workshopId = "-"
-        if hasattr(current, "workshopId"):
+        if current.workshopId is not None:
             workshopId = current.workshopId
 
         truncateConstant = 28
@@ -1573,9 +1632,14 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.modListDock)
 
         # Setup icon queue thread.
-        self.modList.iconThread.started.connect(self.modList.modIconQueueHandler.start)
-        self.modList.iconThread.destroyed.connect(self.modList.modIconQueueHandler.stop)
+        self.modList.iconThread.started.connect(self.modList.modIconWorker.start)
+        self.modList.iconThread.destroyed.connect(self.modList.modIconWorker.stop)
         self.modList.iconThread.start(QThread.Priority.IdlePriority)
+
+        # Setup mod loader thread.
+        self.modList.modThread.started.connect(self.modList.modLoaderWorker.start)
+        self.modList.modThread.destroyed.connect(self.modList.modLoaderWorker.stop)
+        self.modList.modThread.start(QThread.Priority.HighestPriority)
 
     def setupModViewer(self):
         # Add mod viewer.
@@ -1593,11 +1657,11 @@ class MainWindow(QMainWindow):
         if settings.value("AutomaticThumbnailDownload") == "1":
             settings.setValue("AutomaticThumbnailDownload", "0")
             iconQueue.clear()
-            self.modList.modIconQueueHandler.paused = True
+            self.modList.modIconWorker.paused = True
             self.disableAutoDownload.setText("Enable automatic\nthumbnail download")
         else:
             settings.setValue("AutomaticThumbnailDownload", "1")
-            self.modList.modIconQueueHandler.paused = False
+            self.modList.modIconWorker.paused = False
             self.disableAutoDownload.setText("Disable automatic\nthumbnail download")
 
             # Reload mod list.
@@ -1607,13 +1671,14 @@ class MainWindow(QMainWindow):
         mainWindow.modList.loadMods()
 
     def closeIconTimer(self):
-        self.modList.modIconQueueHandler.destroy.emit()
+        self.modList.modIconWorker.destroy.emit()
 
     def closeEvent(self, event):
         # Disable workshop icon queue.
         iconQueue.clear()
 
         self.modList.iconThread.requestInterruption()
+        self.modList.modThread.requestInterruption()
 
         # Save packs.
         for x in range(mainWindow.packList.count()):
@@ -1640,4 +1705,5 @@ if __name__ == "__main__":
     app.exec()
 
     mainWindow.modList.iconThread.wait()
+    mainWindow.modList.modThread.wait()
     sys.exit(0)
