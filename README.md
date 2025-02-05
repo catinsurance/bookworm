@@ -4,6 +4,11 @@ Bookworm is a mod manager for Repentance and Repentance+ (untested on Afterbirth
 <img src="repo/preview1.png" alt="Preview image" width="500"/>
 <img src="repo/preview2.png" alt="Preview image" width="500"/>
 
+## How to download
+<img src="repo/download.png" alt="Download instructions: click the 'releases' button on the right of the screen, find the latest release (usually at the top with green text), and download the .zip file. Unpack anywhere." width="700"/>
+
+Download instructions: click the 'releases' button on the right of the screen, find the latest release (usually at the top with green text), and download the .zip file. Unpack anywhere.
+
 ## Build Instructions
 
 I use [`pyinstaller`](https://www.geeksforgeeks.org/convert-python-script-to-exe-file/) to package the python script into an EXE. I do so in a virtual environment with only the necessary packages installed.
