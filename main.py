@@ -1498,6 +1498,77 @@ class ModViewer(QWidget):
         painter = QPainter(self)
         self.style().drawPrimitive(QStyle.PrimitiveElement.PE_Widget, opt, painter, self)
 
+class AboutWindowIcon(QLabel):
+    def __init__(self):
+        super().__init__()
+
+        self.icon = QPixmap("./resources/app_icon.ico")
+        self.secret = QMovie("./resources/oily_spin.gif")
+
+        self.secret.start()
+        self.secret.setPaused(True)
+
+        self.setPixmap(self.icon)
+        self.secret.frameChanged.connect(self.updateIcon)
+
+    def updateIcon(self):
+        if self.secret.state() == QMovie.MovieState.Running:
+            self.setPixmap(self.secret.currentPixmap())
+        else:
+            self.setPixmap(self.icon)
+
+    def enterEvent(self, event):
+        self.secret.setPaused(False)
+        self.updateIcon()
+        return super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self.secret.setPaused(True)
+        self.updateIcon()
+        return super().leaveEvent(event)
+
+class AboutWindow(QWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowTitle("Bookworm - About")
+        self.setMinimumSize(500, 200)
+        self.setMaximumSize(500, 200)
+
+        self.mainBackground = QPixmap("./resources/backgrounds/library_background.png")
+        self.mainBackground = self.mainBackground.scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding)
+        self.backgroundPalette = QPalette()
+        self.backgroundPalette.setBrush(QPalette.ColorRole.Window, self.mainBackground)
+        self.setPalette(self.backgroundPalette)
+
+        self.aboutLayout = QHBoxLayout()
+        self.aboutLayout.setContentsMargins(0, 0, 0, 0)
+
+        self.masterLayout = QHBoxLayout()
+
+        self.masterWidget = PaperLargeWidget()
+        self.masterWidget.dockTitle = "About"
+        self.masterWidget.setContentsMargins(20, 36, 4, 4)
+        self.masterWidget.setLayout(self.masterLayout)
+
+        self.icon = AboutWindowIcon()
+        self.masterLayout.addWidget(self.icon, 1)
+
+        self.about = PaperTextBrowser()
+        self.about.setOpenExternalLinks(True)
+
+        self.about.setText("""<a href="https://github.com/catinsurance/bookworm">Bookworm</a> is a mod and modpack management tool for The Binding of Isaac: Repentance/Repentance+.
+        You can create packs to enable a mass amount of mods at once, and export them to share with others. You can also view information about your mods.
+        <br/><br/>
+        Created and maintained by <a href="https://ko-fi.com/catinsurance">catinsurance</a>.
+        """)
+
+        self.masterLayout.addWidget(self.about, 3)
+
+        self.aboutLayout.addWidget(self.masterWidget)
+        self.setLayout(self.aboutLayout)
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -1567,6 +1638,11 @@ class MainWindow(QMainWindow):
         else:
             self.disableAutoDownload.setText("Enable automatic\nthumbnail download")
 
+        self.aboutWindow = AboutWindow()
+        self.aboutButton = PaperPushButton(PaperButtonType.Primary, "About")
+        self.aboutButton.clicked.connect(self.aboutWindow.show)
+        self.aboutButton.setMaximumSize(80, 60)
+        self.settingsMenuMasterWidgetLayout.addWidget(self.aboutButton)
 
         self.settingsMenuMasterWidget.setLayout(self.settingsMenuMasterWidgetLayout)
 
@@ -1674,6 +1750,8 @@ class MainWindow(QMainWindow):
         self.modList.modIconWorker.destroy.emit()
 
     def closeEvent(self, event):
+        self.aboutWindow.close()
+
         # Disable workshop icon queue.
         iconQueue.clear()
 
