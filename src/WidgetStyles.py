@@ -132,6 +132,27 @@ class PaperListWidget(QListWidget):
                 border-width: 8px 8px 8px 8px;
                 border-image: url(./resources/backgrounds/listitem_secondary_64_highlight.png) 8 8 8 8 fill;
             }}
+
+            QListWidget::item::selected {{
+                color: "#e1d0ba";
+                background-color: none;
+                border-width: 8px 8px 8px 8px;
+                border-image: url(./resources/backgrounds/listitem_selected_64.png) 8 8 8 8 fill;
+            }}
+
+            QListWidget::item::selected::alternate {{
+                color: "#e1d0ba";
+                background-color: "{backgroundColor}";
+                border-width: 8px 8px 8px 8px;
+                border-image: url(./resources/backgrounds/listitem_selected_64.png) 8 8 8 8 fill;
+            }}
+
+            QListWidget::item::selected:hover {{
+                color: "#e1d0ba";
+                background-color: "{backgroundColor}";
+                border-width: 8px 8px 8px 8px;
+                border-image: url(./resources/backgrounds/listitem_selected_64.png) 8 8 8 8 fill;
+            }}
         """)
 
 class PaperLargeWidget(QWidget):

@@ -1146,13 +1146,13 @@ class MiniPackItem(QListWidgetItem):
 
         f = self.label.font()
         f.setBold(True)
-        f.setPointSize(10)
+        f.setPointSize(12)
         self.label.setFont(f)
 
         self.layout.addWidget(self.label, alignment=Qt.AlignmentFlag.AlignLeft)
 
         self.checkbox = QPushButton()
-        self.checkbox.setFixedSize(16, 16)
+        self.checkbox.setFixedSize(32, 32)
         self.checkState = False
 
         self.refreshCheckboxStylesheet()
@@ -1162,7 +1162,7 @@ class MiniPackItem(QListWidgetItem):
         self.layout.addWidget(self.checkbox, alignment=Qt.AlignmentFlag.AlignRight)
 
         self.widget.setLayout(self.layout)
-        self.setSizeHint(QSize(200, 50))
+        self.setSizeHint(QSize(200, 64))
 
 
     # Required after changing object name.
@@ -1402,6 +1402,7 @@ class ModViewer(QWidget):
         self.addPackList = PaperListWidget("#c5dff7")
         self.addPackList.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.addPackLayout.addWidget(self.addPackList)
+        self.addPackList.itemClicked.connect(self.packlistItemClicked)
 
         self.scrollbar = PaperScrollbar(PaperScrollbarType.MiniPackList, self)
         self.addPackList.setVerticalScrollBar(self.scrollbar)
@@ -1410,6 +1411,9 @@ class ModViewer(QWidget):
         self.setLayout(self.layout)
 
         self.createPackList()
+
+    def packlistItemClicked(self, item):
+        item.checkClicked()
 
     def createPackList(self):
         self.addPackList.clear()
