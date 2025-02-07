@@ -293,6 +293,7 @@ class ModItem(QListWidgetItem):
             self.label = QLabel(
                 f"<font size=5>Failed to read mod data!</font><br><font size=3><i>{folderName}</i></font>"
             )
+            self.label.setStyleSheet('color: "#2f2322"')
 
             self.setFlags(self.flags() & ~Qt.ItemFlag.ItemIsSelectable)
         else:
@@ -377,6 +378,7 @@ class ModItem(QListWidgetItem):
             self.label = QLabel(
                 f"<font size=5>{name}</font><br><font size=3><i>{self.directory}</i></font>"
             )
+            self.label.setStyleSheet('color: "#2f2322"')
 
         self.thumbnailLayout.addWidget(self.thumbnailBorder, 0, 0, Qt.AlignmentFlag.AlignCenter)
 
@@ -1380,6 +1382,7 @@ class ModViewer(QWidget):
         self.layout = QBoxLayout(QBoxLayout.Direction.TopToBottom)
 
         self.titleLabel = QLabel()
+        self.titleLabel.setStyleSheet('color: "#2f2322"')
 
         # Setup description area.
         self.descriptionLabel = PaperTextBrowser()
@@ -1393,6 +1396,7 @@ class ModViewer(QWidget):
 
         self.addPackLabel = QLabel("<h2>Include in packs:</h2>")
         self.addPackLabel.setFont(self.isaacFont)
+        self.addPackLabel.setStyleSheet('color: "#2f2322"')
         self.addPackLayout.addWidget(self.addPackLabel)
 
         self.addPackList = PaperListWidget("#c5dff7")

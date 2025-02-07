@@ -52,6 +52,7 @@ class PaperScrollbar(QScrollBar):
         self.scrollbarType = scrollbarType
         self.setStyleSheet(f"""
             QScrollBar {{
+                color: "#2f2322";
                 background: "#766d63";
                 width: 12px;
                 margin: 0px;
@@ -59,16 +60,19 @@ class PaperScrollbar(QScrollBar):
             }}
 
             QScrollBar::add-line:vertical {{
+                color: "#2f2322";
                 background: none;
                 border: none;
             }}
 
             QScrollBar::sub-line:vertical {{
+                color: "#2f2322";
                 background: none;
                 border: none;
             }}
 
             QScrollBar::handle:vertical {{
+                color: "#2f2322";
                 background: "{self.scrollbarType[1]}";
                 border-width: 8px 8px 8px 8px;
                 border-image: url({self.scrollbarType[0]}.png) 8 8 8 8 fill;
@@ -96,7 +100,7 @@ class PaperListWidget(QListWidget):
         self.setMouseTracking(True)
         self.setStyleSheet(f"""
             QListWidget {{
-                color: transparent;
+                color: "#2f2322";
                 background-color: transparent;
                 border: none;
             }}
@@ -199,12 +203,14 @@ class PaperToolButton(QToolButton):
 
         self.paperType = paperType
         self.setStyleSheet(f"""
+            color: "#2f2322";
             border-width: 4px 8px 4px 8px;
             border-image: url({self.paperType + ".png"}) 4 8 4 8 fill;
         """)
 
     def enterEvent(self, event):
         self.setStyleSheet(f"""
+            color: "#2f2322";
             border-width: 4px 8px 4px 8px;
             border-image: url({self.paperType + "_highlight.png"}) 4 8 4 8 fill;
         """)
@@ -212,6 +218,7 @@ class PaperToolButton(QToolButton):
 
     def leaveEvent(self, event):
         self.setStyleSheet(f"""
+            color: "#2f2322";
             border-width: 4px 8px 4px 8px;
             border-image: url({self.paperType + ".png"}) 4 8 4 8 fill;
         """)
@@ -228,12 +235,14 @@ class PaperPushButton(QPushButton):
         self.setFont(self.isaacFont)
 
         self.setStyleSheet(f"""
+            color: "#2f2322";
             border-width: 8px 12px 12px 12px;
             border-image: url({paperType + ".png"}) 8 12 12 12 fill;
         """)
 
     def enterEvent(self, event):
         self.setStyleSheet(f"""
+            color: "#2f2322";
             border-width: 8px 12px 12px 12px;
             border-image: url({self.paperType + "_highlight.png"}) 8 12 12 12 fill;
         """)
@@ -241,6 +250,7 @@ class PaperPushButton(QPushButton):
 
     def leaveEvent(self, event):
         self.setStyleSheet(f"""
+            color: "#2f2322";
             border-width: 8px 12px 12px 12px;
             border-image: url({self.paperType + ".png"}) 8 12 12 12 fill;
         """)
