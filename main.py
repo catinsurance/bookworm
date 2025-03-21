@@ -1689,6 +1689,17 @@ class MainWindow(QMainWindow):
 
         self.modListMasterWidgetLayout = QHBoxLayout()
 
+        # Refresh button
+        self.modListRefresh = PaperPushButton(PaperButtonType.Primary, None, self.modListMasterWidget)
+        self.modListRefresh.setIcon(QPixmap("resources/refresh.png"))
+        self.modListRefresh.setIconSize(QSize(21, 21))
+        self.modListRefresh.setMinimumSize(40, 40)
+        self.modListRefresh.setMaximumSize(40, 40)
+        self.modListRefresh.clicked.connect(self.refreshButtonClick)
+
+        self.modListMasterWidget.update()
+        self.modListMasterWidget.setHeaderButton(self.modListRefresh)
+
         # Add mod list.
         self.modListDockWidget = QWidget()
         self.modListDockLayout = QBoxLayout(QBoxLayout.Direction.TopToBottom)
@@ -1724,6 +1735,9 @@ class MainWindow(QMainWindow):
         self.modList.modThread.started.connect(self.modList.modLoaderWorker.start)
         self.modList.modThread.destroyed.connect(self.modList.modLoaderWorker.stop)
         self.modList.modThread.start(QThread.Priority.HighestPriority)
+
+    def refreshButtonClick(self):
+        mainWindow.modList.loadMods()
 
     def setupModViewer(self):
         # Add mod viewer.

@@ -175,6 +175,18 @@ class PaperLargeWidget(QWidget):
             }
         """)
 
+        self.headerButton = None
+        self.titlePadding = QPoint(0, 0)
+
+    # Adds a butotn next to the header.
+    def setHeaderButton(self, button):
+        self.headerButton = button
+        metrics = QFontMetrics(self.isaacFont)
+        bounding = metrics.boundingRect(self.dockTitle)
+        titlePoint = QPoint((self.rect().topRight().x() // 2) - (bounding.width() // 2), 38)
+        self.headerButton.move(titlePoint - QPoint(self.headerButton.size().width() / 2 - 5, self.headerButton.size().height() / 1.5))
+        self.titlePadding = QPoint(self.headerButton.size().width() / 2 + 5, 0)
+
     # Draw background.
     def paintEvent(self, event):
         opt = QStyleOption()
@@ -185,8 +197,10 @@ class PaperLargeWidget(QWidget):
         # Draw title
         painter.setFont(self.isaacFont)
         metrics = QFontMetrics(self.isaacFont)
+
         bounding = metrics.boundingRect(self.dockTitle)
-        titlePoint = QPoint((event.rect().topRight().x() // 2) - (bounding.width() // 2), 38)
+        titlePoint = QPoint((event.rect().topRight().x() // 2) - (bounding.width() // 2), 38) - self.titlePadding
+
         painter.drawText(titlePoint, self.dockTitle)
 
 class PaperWidgetAction(QWidgetAction):
