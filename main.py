@@ -1484,9 +1484,12 @@ class ModViewer(QWidget):
         if len(directory) > truncateConstant:
             directory = directory[0 : truncateConstant - 3] + "..."
 
+
+        url = bytearray(QUrl.fromLocalFile(current.folderPath).toEncoded()).decode()
         self.titleLabel.setText(
-            f"<font size=8><b>{title}</b></font><br/><font size=3><i>{directory} </i>/<i> Workshop ID: {workshopId}</i></font>"
+            f"<font size=8><b>{title}</b></font><br/><font size=3><i><a href={url}>{directory}</a> </i>/<i> Workshop ID: {workshopId}</i></font>"
         )
+        self.titleLabel.setOpenExternalLinks(True)
 
         # Parse description.
         html = self.parseBBCode(current.description)
@@ -1542,6 +1545,7 @@ class AboutWindow(QWidget):
         self.setWindowTitle("Bookworm - About")
         self.setMinimumSize(500, 200)
         self.setMaximumSize(500, 200)
+
 
         self.mainBackground = QPixmap("./resources/backgrounds/library_background.png")
         self.mainBackground = self.mainBackground.scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding)
