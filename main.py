@@ -467,27 +467,36 @@ class ModItem(QListWidgetItem):
             """
         )
 
+    def disableMod(self):
+        path = os.path.join(self.folderPath, "disable.it")
+
+        # Create disable.it at path.
+        with open(path, "w") as fp:
+            pass
+
+        self.checkbox.setObjectName("modItemDisabled")
+        self.enabled = False
+
+    def enableMod(self):
+        path = os.path.join(self.folderPath, "disable.it")
+
+        # Remove disable.it (if it exists)
+        if os.path.exists(path):
+            os.remove(path)
+
+        self.checkbox.setObjectName("modItemEnabled")
+        self.enabled = True
+
+
     # Toggle the mod on or off.
     def toggleMod(self):
         if not self.loaded:
             return
 
-        path = os.path.join(self.folderPath, "disable.it")
         if self.enabled:
-            # Create disable.it at path.
-            with open(path, "w") as fp:
-                pass
-
-            self.checkbox.setObjectName("modItemDisabled")
-            self.enabled = False
-        else:
-            # Remove disable.it (if it exists)
-            if os.path.exists(path):
-                os.remove(path)
-
-            self.checkbox.setObjectName("modItemEnabled")
-
-            self.enabled = True
+            self.disableMod()
+        elif not self.enabled:
+            self.enableMod()
 
         self.refreshCheckboxStylesheet()
 
@@ -1701,7 +1710,16 @@ class MainWindow(QMainWindow):
         self.modListRefresh.setMaximumSize(40, 40)
         self.modListRefresh.clicked.connect(self.refreshButtonClick)
 
+        # Disable all button
+        self.modDisableAll = PaperPushButton(PaperButtonType.Primary, None, self.modListMasterWidget)
+        self.modDisableAll.setIcon(QPixmap("resources/disableall.png"))
+        self.modDisableAll.setIconSize(QSize(21, 21))
+        self.modDisableAll.setMinimumSize(40, 40)
+        self.modDisableAll.setMaximumSize(40, 40)
+        self.modDisableAll.clicked.connect(self.disableAllButtonClick)
+
         self.modListMasterWidget.update()
+        self.modListMasterWidget.setHeaderButton(self.modDisableAll)
         self.modListMasterWidget.setHeaderButton(self.modListRefresh)
 
         # Add mod list.
@@ -1742,6 +1760,13 @@ class MainWindow(QMainWindow):
 
     def refreshButtonClick(self):
         mainWindow.modList.loadMods()
+
+    def disableAllButtonClick(self):
+        for x in range(mainWindow.modList.count()):
+            item = mainWindow.modList.item(x)
+            if item and item.loaded and item.enabled:
+                item.disableMod()
+                item.refreshCheckboxStylesheet()
 
     def setupModViewer(self):
         # Add mod viewer.

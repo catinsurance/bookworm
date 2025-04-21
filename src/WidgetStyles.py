@@ -175,17 +175,19 @@ class PaperLargeWidget(QWidget):
             }
         """)
 
-        self.headerButton = None
+        self.headerButtons = []
         self.titlePadding = QPoint(0, 0)
 
-    # Adds a butotn next to the header.
+    # Adds a button next to the header.
     def setHeaderButton(self, button):
-        self.headerButton = button
+        self.headerButtons.append(button)
         metrics = QFontMetrics(self.isaacFont)
         bounding = metrics.boundingRect(self.dockTitle)
         titlePoint = QPoint((self.rect().topRight().x() // 2) - (bounding.width() // 2), 38)
-        self.headerButton.move(titlePoint - QPoint(self.headerButton.size().width() / 2 - 5, self.headerButton.size().height() / 1.5))
-        self.titlePadding = QPoint(self.headerButton.size().width() / 2 + 5, 0)
+        offset = (len(self.headerButtons) - 1) * button.size().width() + (len(self.headerButtons) - 1) * 10 - 5
+        titleOffset = button.size().width() / 2 + (len(self.headerButtons) - 1) * 10 + 5
+        button.move(titlePoint - QPoint(button.size().width() / 2 - 5 * len(self.headerButtons) + offset, button.size().height() / 1.5))
+        self.titlePadding = QPoint(button.size().width() / 2 + 5 * len(self.headerButtons) + titleOffset, 0)
 
     # Draw background.
     def paintEvent(self, event):
