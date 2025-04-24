@@ -820,11 +820,13 @@ class PackItem(QListWidgetItem):
         self.mods = []
         self.loaded = False
         self.filePath = None
+        self.unsavedChanges = False
 
         if filePath is not None:
             self.loaded = self.deserialize(filePath)
         else:
             self.loaded = True
+            self.unsavedChanges = True
 
         if not self.loaded:
             print(f"Could not load modpack of file path {filePath}")
@@ -849,23 +851,39 @@ class PackItem(QListWidgetItem):
         self.layout.addWidget(self.title)
         self.layout.addWidget(self.modCount)
 
-        # Create buttons in grid.
-        self.buttonGrid = QHBoxLayout()
-
+        # Changed to 3 row grid layout.
+        self.buttonGrid = QGridLayout()
+        self.buttonGrid.setContentsMargins(0, 0, 0, 0)
+    
+        # First row
         self.apply = PaperPushButton(PaperButtonType.Confirm, "Apply")
-        self.buttonGrid.addWidget(self.apply)
+        self.buttonGrid.addWidget(self.apply, 0, 0, 1, 2)
         self.apply.clicked.connect(self.applyPack)
 
         self.export = PaperPushButton(PaperButtonType.Primary, "Export")
-        self.buttonGrid.addWidget(self.export)
+        self.buttonGrid.addWidget(self.export, 0, 2, 1, 1)
         self.export.clicked.connect(self.exportPack)
 
         self.duplicate = PaperPushButton(PaperButtonType.Primary, "Copy")
-        self.buttonGrid.addWidget(self.duplicate)
+        self.buttonGrid.addWidget(self.duplicate, 0, 3, 1, 1)
         self.duplicate.clicked.connect(self.duplicatePack)
 
+        # Second row
+        self.addActive = PaperPushButton(PaperButtonType.Confirm, "Add Active Mods")
+        self.buttonGrid.addWidget(self.addActive, 1, 0, 1, 2)
+        self.addActive.clicked.connect(self.addActiveMods)
+
+        self.removeActive = PaperPushButton(PaperButtonType.Danger, "Remove Active Mods")
+        self.buttonGrid.addWidget(self.removeActive, 1, 2, 1, 2)
+        self.removeActive.clicked.connect(self.removeActiveMods)
+
+        # Third row
+        self.save = PaperPushButton(PaperButtonType.Confirm, "Save")
+        self.buttonGrid.addWidget(self.save, 2, 0, 1, 2)
+        self.save.clicked.connect(self.savePack)
+
         self.delete = PaperPushButton(PaperButtonType.Danger, "Delete")
-        self.buttonGrid.addWidget(self.delete)
+        self.buttonGrid.addWidget(self.delete, 2, 2, 1, 2)
         self.delete.clicked.connect(self.remove)
 
         self.layout.addLayout(self.buttonGrid)
@@ -896,11 +914,15 @@ class PackItem(QListWidgetItem):
         return True
 
     def expand(self):
-        self.setSizeHint(QSize(200, 140))
+        self.setSizeHint(QSize(200, 200))
         self.apply.setVisible(True)
         self.export.setVisible(True)
         self.duplicate.setVisible(True)
         self.delete.setVisible(True)
+        self.save.setVisible(True)
+        self.addActive.setVisible(True)
+        self.removeActive.setVisible(True)
+        
 
     def shrink(self):
         self.setSizeHint(QSize(200, 100))
@@ -908,16 +930,21 @@ class PackItem(QListWidgetItem):
         self.export.setVisible(False)
         self.duplicate.setVisible(False)
         self.delete.setVisible(False)
+        self.save.setVisible(False)
+        self.addActive.setVisible(False)
+        self.removeActive.setVisible(False)
 
     def addMod(self, directory):
         if directory in self.mods:
             return
 
         self.mods.append(directory)
+        self.unsavedChanges = True
         self.setLabel()
 
     def removeMod(self, directory):
         self.mods.remove(directory)
+        self.unsavedChanges = True
         self.setLabel()
 
     def remove(self, cleanEntry):
@@ -966,10 +993,15 @@ class PackItem(QListWidgetItem):
                 )
 
         self.name = self.title.displayText()
+        self.unsavedChanges = True
         mainWindow.packList.updateModViewerPackList()
 
     def setLabel(self):
-        self.title.setText(self.name)
+        # Added an indicator (*) for unsaved changes
+        if self.unsavedChanges:
+            self.title.setText(f"{self.name} *")
+        else:
+            self.title.setText(self.name)
         self.modCount.setText(f"<font size=3><i>Mods: {len(self.mods)}</i></font>")
 
     def deserialize(self, filePath):
@@ -1090,6 +1122,7 @@ class PackItem(QListWidgetItem):
 
             tree.write(self.filePath, encoding="utf-8")
 
+        self.unsavedChanges = False 
         print(f"Successfully saved pack {self.name}")
 
     def exportPack(self):
@@ -1110,10 +1143,39 @@ class PackItem(QListWidgetItem):
                 return self.makeCopiedName(nameToCheck)
 
         return nameToCheck
+    
+    def savePack(self):
+        # Save the pack.
+        self.serialize()
+        self.unsavedChanges = False
+        self.setLabel() 
+    
+    def addActiveMods(self):
+        # Add mods to the pack if they aren't in it.
+        for i in range(mainWindow.modList.count()):
+            mod = mainWindow.modList.item(i)
+            if mod.loaded and mod.enabled and (mod.directory not in self.mods):
+                self.addMod(mod.directory)
+                mainWindow.packList.updateModViewerPackList() # Repopulate
 
+                self.unsavedChanges = True
+                self.setLabel()
+
+    def removeActiveMods(self):
+        # Remove mods from the pack if they are in it.
+        for i in range(mainWindow.modList.count()):
+            mod = mainWindow.modList.item(i)
+            if mod.loaded and mod.enabled and (mod.directory in self.mods):
+                self.removeMod(mod.directory)
+                mainWindow.packList.updateModViewerPackList() # Repopulate
+
+                self.unsavedChanges = True
+                self.setLabel()
+            
     def duplicatePack(self):
         # Create new pack.
         newPack = PackItem()
+        newPack.unsavedChanges = True
 
         newPack.name = self.makeCopiedName()
         newPack.title.setText(newPack.name)
@@ -1339,7 +1401,9 @@ class PackListToolbar(QWidget):
             # Remove file path so that it's generated later.
             # This prevents just saving to where the pack was imported from.
             newPack.filePath = None
-
+            # Force save reminder.
+            newPack.unsavedChanges = True
+    
             mainWindow.packList.addItem(newPack)
             mainWindow.packList.setItemWidget(newPack, newPack.widget)
             self.updateModViewerPackList()
@@ -1485,8 +1549,11 @@ class ModViewer(QWidget):
 
         # Set workshop id.
         workshopId = "-"
+        
         if current.workshopId is not None:
             workshopId = current.workshopId
+            # Made clickable link to the workshop item.
+            workshopId = f'<a href="{WORKSHOP_ITEM_URL}{workshopId}">{workshopId}</a>'
 
         truncateConstant = 28
         directory = current.directory
@@ -1803,16 +1870,50 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         self.aboutWindow.close()
 
+        # Check for unsaved packs
+        unsavedPacks = []
+        for x in range(self.packList.count()):
+            item = self.packList.item(x)
+            if item.unsavedChanges:
+                unsavedPacks.append(item.name)
+        
+        # Prompt for save
+        if unsavedPacks:
+            message = "The following packs have unsaved changes:\n\n"
+            message += "\n".join(f"• {pack}" for pack in unsavedPacks)
+            message += "\n\nDo you want to save these packs before quitting?"
+            
+            dialog = QMessageBox()
+            dialog.setWindowTitle("Unsaved Changes")
+            dialog.setText(message)
+            dialog.setIcon(QMessageBox.Icon.Warning)
+            
+            saveButton = dialog.addButton("Save All", QMessageBox.ButtonRole.AcceptRole)
+            discardButton = dialog.addButton("Discard Changes", QMessageBox.ButtonRole.DestructiveRole)
+            cancelButton = dialog.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+            
+            dialog.exec()
+            
+            # Handle clicks
+            if dialog.clickedButton() == saveButton:
+                # Save all unsaved packs
+                for x in range(self.packList.count()):
+                    item = self.packList.item(x)
+                    if item.unsavedChanges:
+                        item.serialize()
+            
+            elif dialog.clickedButton() == cancelButton:
+                # Cancel closing the application
+                event.ignore()
+                return
+            
+            # If discard was clicked, we just quit without saving.
+
         # Disable workshop icon queue.
         iconQueue.clear()
 
         self.modList.iconThread.requestInterruption()
         self.modList.modThread.requestInterruption()
-
-        # Save packs.
-        for x in range(mainWindow.packList.count()):
-            item = mainWindow.packList.item(x)
-            item.serialize()
 
         event.accept()
 
