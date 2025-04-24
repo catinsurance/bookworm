@@ -1889,7 +1889,7 @@ class MainWindow(QMainWindow):
             dialog.setIcon(QMessageBox.Icon.Warning)
             
             saveButton = dialog.addButton("Save All", QMessageBox.ButtonRole.AcceptRole)
-            discardButton = dialog.addButton("Discard Changes", QMessageBox.ButtonRole.DestructiveRole)
+            discardButton = dialog.addButton("Discard All", QMessageBox.ButtonRole.DestructiveRole)
             cancelButton = dialog.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
             
             dialog.exec()
